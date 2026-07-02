@@ -67,12 +67,15 @@ The exit code is the contract that makes it useful in scripts and CI:
 Validate every invoice a build produces and fail on a non-compliant one:
 
 ```yaml
-- run: npx beliq-cli validate "dist/invoices/*.xml" --fail-on error
+- run: |
+    for f in dist/invoices/*.xml; do
+      npx beliq-cli validate "$f" --fail-on error
+    done
   env:
     BELIQ_API_KEY: ${{ secrets.BELIQ_API_KEY }}
 ```
 
-For a first-class GitHub Action with a per-file step summary, see `beliq-eu/beliq-validate-action`.
+`beliq validate` takes one file (or `-` for stdin), so the shell expands the glob and the step fails on the first non-compliant document. For glob handling, a per-file step summary, and job outputs, use the GitHub Action `beliq-eu/beliq-validate-action`.
 
 ## Development
 

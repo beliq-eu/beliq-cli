@@ -10,11 +10,15 @@ export function version(): string {
 export const HELP = `beliq: validate, generate, parse, and convert EU e-invoices
 
 Usage:
-  beliq validate <file|->  [--format auto|cii|ubl] [--fail-on error|warning] [--content-type <mime>] [--json]
+  beliq validate <file|dir|-> [<file|dir> ...] [--format auto|cii|ubl] [--fail-on error|warning] [--json]
   beliq generate <invoice.json|-> --standard xrechnung|zugferd|facturx|peppol-bis [--pdf] [--facturx-profile <p>] [--no-verify] [--output <file>] [--json]
   beliq parse    <file|->  [--format auto|cii|ubl] [--json]
   beliq convert  <file|->  --target-format cii|ubl|zugferd|facturx|xrechnung|peppol-bis [--source-format <f>] [--target-profile <p>] [--output <file>] [--json]
   beliq me                 [--json]
+
+validate accepts an XML document or a ZUGFeRD/Factur-X PDF. Pass several files,
+a shell glob, or a directory (its .xml/.pdf files, recursively) to validate a
+batch: a per-file verdict, a summary, and one exit code for the whole run.
 
 Global options:
   --api-key <key>   beliq API key (default: BELIQ_API_KEY)
@@ -30,6 +34,9 @@ Exit codes:
   2  usage error
   3  beliq API error
   4  I/O error
+
+In batch mode the code covers the whole run: 0 if every file passes, 1 if a
+document fails --fail-on, 3 if any file could not be checked.
 
 A file argument of "-" reads from stdin. Set BELIQ_API_KEY (or pass --api-key)
 with a key from the beliq dashboard; the free tier is enough to evaluate.

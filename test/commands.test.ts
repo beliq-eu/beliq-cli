@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
+import { BeliqApiError } from '@beliq/sdk'
 import type { BeliqClient } from '../src/deps.js'
 import { parseArgs } from '../src/args.js'
 import { UsageError } from '../src/errors.js'
@@ -115,6 +116,108 @@ describe('validate command', () => {
       UsageError,
     )
     expect(calls).toHaveLength(0)
+  })
+})
+
+/**
+ * A fake client that returns (or throws) one behaviour per call, in order. The
+ * batch loop calls validate once per file in file order, so the array lines up
+ * with the file list. Errors are thrown, results are returned.
+ */
+function queueClient(behaviors: unknown[]): { client: BeliqClient; calls: Call[] } {
+  const calls: Call[] = []
+  let i = 0
+  const client = {
+    validate: async (...args: any[]) => {
+      calls.push({ method: 'validate', args })
+      const b = behaviors[i++]
+      if (b instanceof Error) throw b
+      return b
+    },
+  } as unknown as BeliqClient
+  return { client, calls }
+}
+
+describe('validate command (batch)', () => {
+  it('validates many files and returns 0 when all pass', async () => {
+    const { client, calls } = queueClient([fixture('validate-valid.json'), fixture('validate-valid.json')])
+    const { io, out } = recordingIO({ 'a.xml': '<a/>', 'b.xml': '<b/>' })
+    const code = await runValidate(parseArgs(['validate', 'a.xml', 'b.xml']), { client }, io)
+    expect(code).toBe(0)
+    expect(calls).toHaveLength(2)
+    expect(out()).toContain('PASS')
+    expect(out()).toContain('2 files: 2 passed, 0 failed, 0 errored')
+  })
+
+  it('returns 1 when any document is invalid', async () => {
+    const { client } = queueClient([fixture('validate-valid.json'), fixture('validate-invalid.json')])
+    const { io, out } = recordingIO({ 'a.xml': '<a/>', 'b.xml': '<b/>' })
+    const code = await runValidate(parseArgs(['validate', 'a.xml', 'b.xml']), { client }, io)
+    expect(code).toBe(1)
+    expect(out()).toContain('FAIL')
+    expect(out()).toContain('2 files: 1 passed, 1 failed, 0 errored')
+  })
+
+  it('records a per-file API error, keeps checking the rest, and returns 3', async () => {
+    const err = new BeliqApiError('unsupported format', { status: 400, code: 'UNSUPPORTED_FORMAT' })
+    const { client, calls } = queueClient([fixture('validate-valid.json'), err])
+    const { io, out } = recordingIO({ 'ok.xml': '<a/>', 'bad.txt': 'nope' })
+    const code = await runValidate(parseArgs(['validate', 'ok.xml', 'bad.txt']), { client }, io)
+    expect(code).toBe(3)
+    expect(calls).toHaveLength(2)
+    expect(out()).toContain('ERROR')
+    expect(out()).toContain('UNSUPPORTED_FORMAT')
+    expect(out()).toContain('2 files: 1 passed, 0 failed, 1 errored')
+  })
+
+  it('fails fast on a fatal API status without hammering every file', async () => {
+    const err = new BeliqApiError('invalid api key', { status: 401, code: 'UNAUTHORIZED' })
+    const { client, calls } = queueClient([err, fixture('validate-valid.json')])
+    const { io } = recordingIO({ 'a.xml': '<a/>', 'b.xml': '<b/>' })
+    await expect(
+      runValidate(parseArgs(['validate', 'a.xml', 'b.xml']), { client }, io),
+    ).rejects.toBeInstanceOf(BeliqApiError)
+    expect(calls).toHaveLength(1)
+  })
+
+  it('emits a batch report object on --json', async () => {
+    const { client } = queueClient([fixture('validate-valid.json'), fixture('validate-invalid.json')])
+    const { io, out } = recordingIO({ 'a.xml': '<a/>', 'b.xml': '<b/>' })
+    const code = await runValidate(parseArgs(['validate', 'a.xml', 'b.xml', '--json']), { client }, io)
+    expect(code).toBe(1)
+    const report = JSON.parse(out())
+    expect(report).toMatchObject({ total: 2, passed: 1, failed: 1, errored: 0 })
+    expect(report.results[0]).toMatchObject({ file: 'a.xml', status: 'pass', valid: true })
+    expect(report.results[1]).toMatchObject({ file: 'b.xml', status: 'fail', valid: false })
+    expect(report.results[1].errors[0].ruleId).toBe('BR-DE-15')
+  })
+
+  it('flips a valid-with-warnings file to failed under --fail-on warning', async () => {
+    const { client } = queueClient([fixture('validate-valid.json'), fixture('validate-valid.json')])
+    const { io, out } = recordingIO({ 'a.xml': '<a/>', 'b.xml': '<b/>' })
+    const code = await runValidate(
+      parseArgs(['validate', 'a.xml', 'b.xml', '--fail-on', 'warning']),
+      { client },
+      io,
+    )
+    expect(code).toBe(1)
+    expect(out()).toContain('2 files: 0 passed, 2 failed, 0 errored')
+  })
+
+  it('rejects mixing stdin with other inputs', async () => {
+    const { client } = queueClient([])
+    const { io } = recordingIO({ '-': '<a/>', 'b.xml': '<b/>' })
+    await expect(
+      runValidate(parseArgs(['validate', '-', 'b.xml']), { client }, io),
+    ).rejects.toBeInstanceOf(UsageError)
+  })
+
+  it('is a usage error when the inputs expand to no files', async () => {
+    const { client } = queueClient([])
+    const io = { ...recordingIO().io, expandInputs: async () => [] }
+    await expect(
+      runValidate(parseArgs(['validate', 'emptydir']), { client }, io),
+    ).rejects.toBeInstanceOf(UsageError)
   })
 })
 

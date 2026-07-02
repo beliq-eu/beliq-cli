@@ -47,3 +47,38 @@ export function renderValidationHuman(result: ValidationResult): string {
   const rows = issues.map((i) => [i.severity, i.ruleId, i.location || '-', i.message])
   return `${head}\n${counts}\n\n${renderTable(['SEVERITY', 'RULE', 'LOCATION', 'MESSAGE'], rows)}`
 }
+
+/**
+ * One row of a batch validation: either a validated document (with its result
+ * and whether it fails the chosen --fail-on threshold) or a file that could not
+ * be checked (unreadable, or the API errored on it).
+ */
+export type BatchRow =
+  | { file: string; result: ValidationResult; fails: boolean }
+  | { file: string; error: string }
+
+/**
+ * A batch verdict: a per-file table (PASS / FAIL / ERROR with error and warning
+ * counts) and a one-line summary. The exit code, not this text, is the CI
+ * contract; this is the human view.
+ */
+export function renderBatchHuman(rows: BatchRow[]): string {
+  const cells = rows.map((r) =>
+    'error' in r
+      ? ['ERROR', '-', '-', `${r.file}  (${r.error})`]
+      : [
+          r.fails ? 'FAIL' : 'PASS',
+          String((r.result.errors ?? []).length),
+          String((r.result.warnings ?? []).length),
+          r.file,
+        ],
+  )
+  const table = renderTable(['STATUS', 'ERR', 'WARN', 'FILE'], cells)
+
+  const passed = rows.filter((r) => 'result' in r && !r.fails).length
+  const failed = rows.filter((r) => 'result' in r && r.fails).length
+  const errored = rows.filter((r) => 'error' in r).length
+  const summary = `${plural(rows.length, 'file')}: ${passed} passed, ${failed} failed, ${errored} errored`
+
+  return `${table}\n\n${summary}`
+}

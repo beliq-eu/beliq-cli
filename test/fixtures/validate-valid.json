@@ -1,0 +1,15 @@
+{
+  "valid": true,
+  "format": "ubl",
+  "profileDetected": "peppol-bis",
+  "schematronVersion": "1.3.13",
+  "errors": [],
+  "warnings": [
+    {
+      "ruleId": "PEPPOL-EN16931-R053",
+      "severity": "warning",
+      "location": "/Invoice",
+      "message": "Only one tax total without tax subtotals is allowed."
+    }
+  ]
+}

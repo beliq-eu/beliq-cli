@@ -17,18 +17,24 @@ Requires Node.js >= 20.15.
 ## Usage
 
 ```
-beliq validate <file|->  [--format auto|cii|ubl] [--fail-on error|warning] [--content-type <mime>] [--json]
+beliq validate <file|dir|-> [<file|dir> ...] [--format auto|cii|ubl] [--fail-on error|warning] [--json]
 beliq generate <invoice.json|-> --standard xrechnung|zugferd|facturx|peppol-bis [--pdf] [--facturx-profile <p>] [--no-verify] [--output <file>] [--json]
 beliq parse    <file|->  [--format auto|cii|ubl] [--json]
 beliq convert  <file|->  --target-format cii|ubl|zugferd|facturx|xrechnung|peppol-bis [--source-format <f>] [--target-profile <p>] [--output <file>] [--json]
 beliq me                 [--json]
 ```
 
-A file argument of `-` reads from stdin. `--json` prints the raw API result as the only thing on stdout, so it pipes cleanly.
+`validate` accepts an XML document or a ZUGFeRD/Factur-X PDF. A file argument of `-` reads from stdin. Pass several files, a shell glob, or a directory (its `.xml`/`.pdf` files, recursively) to validate a batch: you get a per-file verdict, a summary, and one exit code for the whole run. `--json` prints the raw API result (a report object in batch mode) as the only thing on stdout, so it pipes cleanly.
 
 ```bash
 # Validate a file, human-readable
 beliq validate invoice.xml
+
+# Validate a hybrid ZUGFeRD/Factur-X PDF (the embedded XML is checked)
+beliq validate invoice.pdf
+
+# Validate a whole folder of invoices (its .xml and .pdf files, recursively)
+beliq validate ./invoices
 
 # Validate from a pipe, machine-readable, fail the shell on any warning too
 cat invoice.xml | beliq validate - --json --fail-on warning
@@ -62,20 +68,19 @@ The exit code is the contract that makes it useful in scripts and CI:
 | 3 | beliq API error (bad key, quota, engine, a rejected document) |
 | 4 | I/O error (unreadable input, or an output path that already exists) |
 
+In batch mode (many files or a directory) the code covers the whole run: `0` if every file passes, `1` if a document fails `--fail-on`, `3` if any file could not be checked (unreadable, or the API errored on it).
+
 ## In CI
 
 Validate every invoice a build produces and fail on a non-compliant one:
 
 ```yaml
-- run: |
-    for f in dist/invoices/*.xml; do
-      npx beliq-cli validate "$f" --fail-on error
-    done
+- run: npx beliq-cli validate dist/invoices --fail-on error
   env:
     BELIQ_API_KEY: ${{ secrets.BELIQ_API_KEY }}
 ```
 
-`beliq validate` takes one file (or `-` for stdin), so the shell expands the glob and the step fails on the first non-compliant document. For glob handling, a per-file step summary, and job outputs, use the GitHub Action `beliq-eu/beliq-validate-action`.
+`beliq validate` takes a directory, so this validates every `.xml`/`.pdf` invoice under `dist/invoices` in one run and fails the step if any is non-compliant. For a per-file step summary and job outputs on GitHub, use the Action `beliq-eu/beliq-validate-action`.
 
 ## Development
 

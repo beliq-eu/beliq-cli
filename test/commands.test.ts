@@ -297,6 +297,53 @@ describe('generate command', () => {
     const { io } = recordingIO('{"number":"1"}')
     await expect(runGenerate(parseArgs(['generate', 'inv.json']), { client }, io)).rejects.toBeInstanceOf(UsageError)
   })
+
+  const sealResult = {
+    contentType: 'application/xml',
+    bytes: new TextEncoder().encode('<Invoice>sealed</Invoice>'),
+    xml: '<Invoice>sealed</Invoice>',
+    sha256: 'abc123def',
+    validationResult: { valid: true, format: 'cii', errors: [], warnings: [], schematronVersion: '1.2.3' },
+    meta: { schematronVersion: '1.2.3', rulesetSha256: 'ruleset-99', livemode: false },
+  }
+
+  it('requests the seal and prints sha256 + verdict to stderr with --seal', async () => {
+    const { client, calls } = fakeClient({ generate: sealResult })
+    const { io, out, err } = recordingIO('{"number":"1"}')
+    const code = await runGenerate(
+      parseArgs(['generate', 'inv.json', '--standard', 'xrechnung', '--seal']),
+      { client },
+      io,
+    )
+    expect(code).toBe(0)
+    expect(calls.find((c) => c.method === 'generate')!.args[0].seal).toBe(true)
+    expect(out()).toContain('<Invoice>sealed</Invoice>')
+    expect(err()).toContain('sha256 abc123def')
+    expect(err()).toContain('Validation passed')
+    expect(err()).toContain('(sandbox)')
+  })
+
+  it('includes sha256, rulesetSha256, and validationResult in --seal --json output', async () => {
+    const { client } = fakeClient({ generate: sealResult })
+    const { io, out } = recordingIO('{"number":"1"}')
+    await runGenerate(
+      parseArgs(['generate', 'inv.json', '--standard', 'xrechnung', '--seal', '--json']),
+      { client },
+      io,
+    )
+    const parsed = JSON.parse(out())
+    expect(parsed.sha256).toBe('abc123def')
+    expect(parsed.rulesetSha256).toBe('ruleset-99')
+    expect(parsed.validationResult.valid).toBe(true)
+    expect(parsed.livemode).toBe(false)
+  })
+
+  it('does not request the seal by default', async () => {
+    const { client, calls } = fakeClient()
+    const { io } = recordingIO('{"number":"1"}')
+    await runGenerate(parseArgs(['generate', 'inv.json', '--standard', 'xrechnung']), { client }, io)
+    expect(calls.find((c) => c.method === 'generate')!.args[0].seal).toBe(false)
+  })
 })
 
 describe('convert command', () => {

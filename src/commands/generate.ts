@@ -27,27 +27,38 @@ export async function runGenerate(args: ParsedArgs, deps: Deps, io: IO): Promise
   }
 
   const output = flagBool(args, 'pdf') ? 'pdf' : 'xml'
+  const seal = flagBool(args, 'seal')
   const result = await deps.client.generate({
     standard,
     invoice,
     output,
     facturxProfile: flagStr(args, 'facturx-profile') as FacturxProfile | undefined,
     verify: !flagBool(args, 'no-verify'),
+    seal,
   })
 
   const checked = result.meta.schematronVersion
     ? `, checked against Schematron ${result.meta.schematronVersion}`
     : ''
-  return emitDocument(io, args, {
-    kind: output,
-    bytes: result.bytes,
-    meta: {
-      output,
-      contentType: result.contentType,
-      schematronVersion: result.meta.schematronVersion,
-      pdfKind: result.meta.pdfKind,
-      outputEnvelope: result.meta.outputEnvelope,
-    },
-    summary: `Generated a ${standard} ${output} document${checked}.`,
-  })
+  const sandbox = result.meta.livemode === false ? ' (sandbox)' : ''
+  const meta: Record<string, unknown> = {
+    output,
+    contentType: result.contentType,
+    schematronVersion: result.meta.schematronVersion,
+    pdfKind: result.meta.pdfKind,
+    outputEnvelope: result.meta.outputEnvelope,
+    livemode: result.meta.livemode,
+  }
+  let summary = `Generated a ${standard} ${output} document${checked}${sandbox}.`
+  if (seal) {
+    meta.sha256 = result.sha256
+    meta.rulesetSha256 = result.meta.rulesetSha256
+    meta.validationResult = result.validationResult
+    const verdict = result.validationResult
+      ? ` Validation ${result.validationResult.valid ? 'passed' : 'failed'}.`
+      : ''
+    summary += ` sha256 ${result.sha256}.${verdict}`
+  }
+
+  return emitDocument(io, args, { kind: output, bytes: result.bytes, meta, summary })
 }

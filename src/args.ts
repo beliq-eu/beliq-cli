@@ -9,7 +9,7 @@ export interface ParsedArgs {
 }
 
 /** Flags that take no value. */
-const BOOLEAN_FLAGS = new Set(['json', 'pdf', 'no-verify', 'france-ctc'])
+const BOOLEAN_FLAGS = new Set(['json', 'pdf', 'no-verify', 'france-ctc', 'seal'])
 
 /** Flags that take a value (`--flag value` or `--flag=value`). */
 const VALUE_FLAGS = new Set([

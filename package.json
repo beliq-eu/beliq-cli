@@ -37,7 +37,8 @@
     "beliq": "dist/index.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "examples"
   ],
   "publishConfig": {
     "provenance": true

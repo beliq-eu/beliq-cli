@@ -11,6 +11,7 @@
   },
   "buyer": {
     "name": "Buyer GmbH",
+    "email": "ap@buyer.example",
     "address": { "street": "Marktweg 2", "city": "Munich", "postalCode": "80331", "countryCode": "DE" }
   },
   "lines": [

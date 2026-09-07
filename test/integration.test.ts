@@ -43,9 +43,10 @@ live('beliq-cli live (integration)', () => {
   })
 
   it('generates an XRechnung, converts it to UBL, and parses the result', async () => {
-    // verify:false so the round-trip does not depend on full business-rule completeness.
+    // No --no-verify: the shipped example is a complete XRechnung, so the smoke
+    // proves the README quickstart passes the business rules, not just the schema.
     const gen = recordingIO(invoiceJson)
-    expect(await runGenerate(parseArgs(['generate', 'inv.json', '--standard', 'xrechnung', '--no-verify']), deps, gen.io)).toBe(0)
+    expect(await runGenerate(parseArgs(['generate', 'inv.json', '--standard', 'xrechnung']), deps, gen.io)).toBe(0)
     const xml = gen.out()
     expect(xml).toContain('CrossIndustryInvoice')
 

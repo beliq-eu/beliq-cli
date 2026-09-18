@@ -284,6 +284,69 @@ describe('generate command', () => {
     ).rejects.toBeInstanceOf(UsageError)
   })
 
+  // PDF output on an XML-only standard is a hard 400 unless the request names a
+  // visual to render, and the CLI exposes no other way to ask for one.
+  it('asks for the default visual with --pdf and for none without it', async () => {
+    const { client, calls } = fakeClient({
+      generate: { contentType: 'application/pdf', bytes: new Uint8Array([0x25, 0x50]), meta: {} },
+    })
+    const { io } = recordingIO('{"number":"1"}')
+    await runGenerate(
+      parseArgs(['generate', 'inv.json', '--standard', 'xrechnung', '--pdf', '--output', 'out.pdf']),
+      { client },
+      io,
+    )
+    expect(calls.find((c) => c.method === 'generate')!.args[0].template).toBe('standard')
+
+    const xml = fakeClient()
+    await runGenerate(
+      parseArgs(['generate', 'inv.json', '--standard', 'xrechnung']),
+      { client: xml.client },
+      recordingIO('{"number":"1"}').io,
+    )
+    expect(xml.calls.find((c) => c.method === 'generate')!.args[0].template).toBeUndefined()
+  })
+
+  // extended-ctc-fr is Factur-X only; the API answers it on zugferd with 422
+  // PROFILE_STANDARD_MISMATCH, so the flag is refused before the call.
+  it('refuses a --facturx-profile the standard does not accept, naming the legal ones', async () => {
+    const { client, calls } = fakeClient()
+    const { io } = recordingIO('{"number":"1"}')
+    await expect(
+      runGenerate(
+        parseArgs(['generate', 'inv.json', '--standard', 'zugferd', '--facturx-profile', 'extended-ctc-fr']),
+        { client },
+        io,
+      ),
+    ).rejects.toThrow('basicwl, en16931, extended')
+    expect(calls.find((c) => c.method === 'generate')).toBeUndefined()
+  })
+
+  it('passes extended-ctc-fr through on facturx', async () => {
+    const { client, calls } = fakeClient()
+    const { io } = recordingIO('{"number":"1"}')
+    await runGenerate(
+      parseArgs(['generate', 'inv.json', '--standard', 'facturx', '--facturx-profile', 'extended-ctc-fr']),
+      { client },
+      io,
+    )
+    expect(calls.find((c) => c.method === 'generate')!.args[0].facturxProfile).toBe('extended-ctc-fr')
+  })
+
+  // Outside the family the SDK drops the flag, and xrechnung's own table holds
+  // only 'xrechnung', so an unguarded check would refuse a call that works.
+  it('does not refuse --facturx-profile outside the Factur-X / ZUGFeRD family', async () => {
+    const { client, calls } = fakeClient()
+    const { io } = recordingIO('{"number":"1"}')
+    const code = await runGenerate(
+      parseArgs(['generate', 'inv.json', '--standard', 'xrechnung', '--facturx-profile', 'en16931']),
+      { client },
+      io,
+    )
+    expect(code).toBe(0)
+    expect(calls.filter((c) => c.method === 'generate')).toHaveLength(1)
+  })
+
   it('rejects a non-JSON invoice as a usage error', async () => {
     const { client } = fakeClient()
     const { io } = recordingIO('not json at all')

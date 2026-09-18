@@ -1,4 +1,10 @@
-import { LIVE_GENERATE_STANDARDS, type FacturxProfile, type Invoice } from '@beliq/sdk'
+import {
+  LIVE_GENERATE_STANDARDS,
+  isProfileAllowedForStandard,
+  profilesForStandard,
+  type FacturxProfile,
+  type Invoice,
+} from '@beliq/sdk'
 import { flagBool, flagStr, oneOf, requirePositional, type ParsedArgs } from '../args.js'
 import { UsageError } from '../errors.js'
 import type { Deps } from '../deps.js'
@@ -17,6 +23,20 @@ export async function runGenerate(args: ParsedArgs, deps: Deps, io: IO): Promise
     throw new UsageError(`--standard is required (one of: ${LIVE_GENERATE_STANDARDS.join(', ')})`)
   }
 
+  // The SDK drops --facturx-profile outside the Factur-X / ZUGFeRD family.
+  // Inside it the pair is pinned (extended-ctc-fr is Factur-X only) and the API
+  // answers a wrong one with 422, so fail as a usage error before the call.
+  const facturxProfile = flagStr(args, 'facturx-profile')
+  if (
+    facturxProfile !== undefined &&
+    (standard === 'facturx' || standard === 'zugferd') &&
+    !isProfileAllowedForStandard(standard, facturxProfile)
+  ) {
+    throw new UsageError(
+      `--facturx-profile for ${standard} must be one of: ${profilesForStandard(standard).join(', ')}`,
+    )
+  }
+
   const raw = await io.readInput(file)
   let invoice: Invoice
   try {
@@ -32,7 +52,11 @@ export async function runGenerate(args: ParsedArgs, deps: Deps, io: IO): Promise
     standard,
     invoice,
     output,
-    facturxProfile: flagStr(args, 'facturx-profile') as FacturxProfile | undefined,
+    facturxProfile: facturxProfile as FacturxProfile | undefined,
+    // XRechnung and Peppol BIS have no hybrid PDF, and the API refuses PDF for
+    // them unless the request names a visual to render. Factur-X and ZUGFeRD
+    // render theirs either way, so this is inert for them.
+    template: output === 'pdf' ? 'standard' : undefined,
     verify: !flagBool(args, 'no-verify'),
     seal,
   })

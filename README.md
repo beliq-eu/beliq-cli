@@ -24,6 +24,8 @@ beliq convert  <file|->  --target-format cii|ubl|zugferd|facturx|xrechnung|peppo
 beliq me                 [--json]
 ```
 
+`generate --pdf` returns a hybrid PDF/A-3 with the XML embedded for `zugferd` and `facturx`. `xrechnung` and `peppol-bis` have no hybrid form, so `--pdf` returns a visualization with no XML inside it, and their legal document stays the XML.
+
 `validate` accepts an XML document or a ZUGFeRD/Factur-X PDF. A file argument of `-` reads from stdin. Pass several files, a shell glob, or a directory (its `.xml`/`.pdf` files, recursively) to validate a batch: you get a per-file verdict, a summary, and one exit code for the whole run. `--json` prints the raw API result (a report object in batch mode) as the only thing on stdout, so it pipes cleanly.
 
 ```bash

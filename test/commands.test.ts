@@ -284,6 +284,29 @@ describe('generate command', () => {
     ).rejects.toBeInstanceOf(UsageError)
   })
 
+  // PDF output on an XML-only standard is a hard 400 unless the request names a
+  // visual to render, and the CLI exposes no other way to ask for one.
+  it('asks for the default visual with --pdf and for none without it', async () => {
+    const { client, calls } = fakeClient({
+      generate: { contentType: 'application/pdf', bytes: new Uint8Array([0x25, 0x50]), meta: {} },
+    })
+    const { io } = recordingIO('{"number":"1"}')
+    await runGenerate(
+      parseArgs(['generate', 'inv.json', '--standard', 'xrechnung', '--pdf', '--output', 'out.pdf']),
+      { client },
+      io,
+    )
+    expect(calls.find((c) => c.method === 'generate')!.args[0].template).toBe('standard')
+
+    const xml = fakeClient()
+    await runGenerate(
+      parseArgs(['generate', 'inv.json', '--standard', 'xrechnung']),
+      { client: xml.client },
+      recordingIO('{"number":"1"}').io,
+    )
+    expect(xml.calls.find((c) => c.method === 'generate')!.args[0].template).toBeUndefined()
+  })
+
   it('rejects a non-JSON invoice as a usage error', async () => {
     const { client } = fakeClient()
     const { io } = recordingIO('not json at all')

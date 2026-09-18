@@ -23,6 +23,10 @@ batch: a per-file verdict, a summary, and one exit code for the whole run.
 generate --seal also returns the document sha256 and validation verdict, so you
 can prove which rules the document passed; hashing the output reproduces it.
 
+--pdf gives a hybrid PDF/A-3 with the XML embedded for zugferd and facturx.
+xrechnung and peppol-bis have no hybrid form, so --pdf returns a visualization
+with no XML inside it, and their legal document stays the XML.
+
 Global options:
   --api-key <key>   beliq API key (default: BELIQ_API_KEY)
   --base-url <url>  API base URL (default: BELIQ_BASE_URL, else https://api.beliq.eu)

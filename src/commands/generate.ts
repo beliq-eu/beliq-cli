@@ -33,6 +33,10 @@ export async function runGenerate(args: ParsedArgs, deps: Deps, io: IO): Promise
     invoice,
     output,
     facturxProfile: flagStr(args, 'facturx-profile') as FacturxProfile | undefined,
+    // XRechnung and Peppol BIS have no hybrid PDF, and the API refuses PDF for
+    // them unless the request names a visual to render. Factur-X and ZUGFeRD
+    // render theirs either way, so this is inert for them.
+    template: output === 'pdf' ? 'standard' : undefined,
     verify: !flagBool(args, 'no-verify'),
     seal,
   })

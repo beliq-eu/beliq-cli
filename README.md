@@ -67,10 +67,12 @@ The exit code is the contract that makes it useful in scripts and CI:
 | 0 | success, or a valid document |
 | 1 | document invalid (`validate`, per `--fail-on`) |
 | 2 | usage error (bad flag, missing argument, missing API key, PDF without `--output`) |
-| 3 | beliq API error (bad key, quota, engine, a rejected document) |
+| 3 | beliq API error (bad key, quota, engine, a rejected document), the API could not be reached (DNS, a refused connection, a timeout), or an unexpected error. Never a verdict on the document. |
 | 4 | I/O error (unreadable input, or an output path that already exists) |
 
 In batch mode (many files or a directory) the code covers the whole run: `0` if every file passes, `1` if a document fails `--fail-on`, `3` if any file could not be checked (unreadable, or the API errored on it).
+
+On an API error the message goes to stderr, followed by the failed rules when the API names them (`generate` refuses a document that fails its own validation with a 422 that lists them). With `--json`, stdout also gets the error as `{ "error": { "status", "code", "message", "details" } }`.
 
 ## In CI
 

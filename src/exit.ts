@@ -5,7 +5,11 @@ export const EXIT = {
   INVALID: 1,
   /** A usage problem: bad flag, missing argument, missing API key, PDF without --output. */
   USAGE: 2,
-  /** The beliq API returned an error (bad key, quota, engine, a rejected document). */
+  /**
+   * The beliq API returned an error (bad key, quota, engine, a rejected
+   * document), could not be reached, or something unexpected failed. Never a
+   * verdict on the document.
+   */
   API: 3,
   /** A local I/O error: an unreadable input or an output path that already exists. */
   IO: 4,

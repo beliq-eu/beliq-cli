@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { main } from './cli.js'
+import { EXIT } from './exit.js'
 import { nodeIO } from './io.js'
 
 main(process.argv.slice(2), nodeIO()).then(
@@ -8,6 +9,6 @@ main(process.argv.slice(2), nodeIO()).then(
   },
   (err) => {
     process.stderr.write(`beliq: fatal: ${(err as Error).message}\n`)
-    process.exitCode = 1
+    process.exitCode = EXIT.API
   },
 )

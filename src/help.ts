@@ -39,7 +39,7 @@ Exit codes:
   0  success, or a valid document
   1  document invalid (validate, per --fail-on)
   2  usage error
-  3  beliq API error
+  3  beliq API error, the API could not be reached, or an unexpected error
   4  I/O error
 
 In batch mode the code covers the whole run: 0 if every file passes, 1 if a

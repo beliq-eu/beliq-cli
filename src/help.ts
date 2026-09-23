@@ -10,10 +10,10 @@ export function version(): string {
 export const HELP = `beliq: validate, generate, parse, and convert EU e-invoices
 
 Usage:
-  beliq validate <file|dir|-> [<file|dir> ...] [--format auto|cii|ubl] [--fail-on error|warning] [--json]
-  beliq generate <invoice.json|-> --standard xrechnung|zugferd|facturx|peppol-bis [--pdf] [--facturx-profile <p>] [--no-verify] [--seal] [--output <file>] [--json]
-  beliq parse    <file|->  [--format auto|cii|ubl] [--json]
-  beliq convert  <file|->  --target-format cii|ubl|zugferd|facturx|xrechnung|peppol-bis [--source-format <f>] [--target-profile <p>] [--output <file>] [--json]
+  beliq validate <file|dir|-> [<file|dir> ...] [--format auto|cii|ubl] [--fail-on error|warning] [--france-ctc] [--content-type <type>] [--json]
+  beliq generate <invoice.json|-> --standard xrechnung|zugferd|facturx|peppol-bis [--pdf] [--facturx-profile basicwl|en16931|extended|extended-ctc-fr] [--no-verify] [--seal] [--output <file>] [--json]
+  beliq parse    <file|->  [--format auto|cii|ubl] [--content-type <type>] [--json]
+  beliq convert  <file|->  --target-format cii|ubl|zugferd|facturx|xrechnung|peppol-bis [--source-format auto|cii|ubl|zugferd|facturx|xrechnung|peppol-bis] [--target-profile basicwl|en16931|extended|extended-ctc-fr] [--content-type <type>] [--output <file>] [--json]
   beliq me                 [--json]
 
 validate accepts an XML document or a ZUGFeRD/Factur-X PDF. Pass several files,
@@ -21,6 +21,9 @@ a shell glob, or a directory (its .xml/.pdf files, recursively) to validate a
 batch: a per-file verdict, a summary, and one exit code for the whole run. A
 directory is a batch even when it holds one file. validate --france-ctc also
 applies the French CTC rules (BR-FR-CTC).
+
+generate --facturx-profile applies to zugferd and facturx; extended-ctc-fr is
+Factur-X only.
 
 generate --seal also returns the document sha256 and validation verdict, so you
 can prove which rules the document passed; hashing the output reproduces it.
@@ -34,6 +37,9 @@ Global options:
   --base-url <url>  API base URL (default: BELIQ_BASE_URL, else https://api.beliq.eu)
   --auth <mode>     header (default, X-API-Key) or bearer
   --json            machine-readable JSON on stdout
+  --content-type <type>
+                    the input's media type (default: application/pdf when the
+                    bytes start with %PDF-, else application/xml)
   -h, --help        show this help
   -v, --version     show the version
 

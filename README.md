@@ -17,12 +17,14 @@ Requires Node.js >= 20.15.
 ## Usage
 
 ```
-beliq validate <file|dir|-> [<file|dir> ...] [--format auto|cii|ubl] [--fail-on error|warning] [--json]
-beliq generate <invoice.json|-> --standard xrechnung|zugferd|facturx|peppol-bis [--pdf] [--facturx-profile <p>] [--no-verify] [--output <file>] [--json]
-beliq parse    <file|->  [--format auto|cii|ubl] [--json]
-beliq convert  <file|->  --target-format cii|ubl|zugferd|facturx|xrechnung|peppol-bis [--source-format <f>] [--target-profile <p>] [--output <file>] [--json]
+beliq validate <file|dir|-> [<file|dir> ...] [--format auto|cii|ubl] [--fail-on error|warning] [--france-ctc] [--content-type <type>] [--json]
+beliq generate <invoice.json|-> --standard xrechnung|zugferd|facturx|peppol-bis [--pdf] [--facturx-profile basicwl|en16931|extended|extended-ctc-fr] [--no-verify] [--seal] [--output <file>] [--json]
+beliq parse    <file|->  [--format auto|cii|ubl] [--content-type <type>] [--json]
+beliq convert  <file|->  --target-format cii|ubl|zugferd|facturx|xrechnung|peppol-bis [--source-format auto|cii|ubl|zugferd|facturx|xrechnung|peppol-bis] [--target-profile basicwl|en16931|extended|extended-ctc-fr] [--content-type <type>] [--output <file>] [--json]
 beliq me                 [--json]
 ```
+
+`--facturx-profile` applies to `zugferd` and `facturx`; `extended-ctc-fr` is Factur-X only. `generate --seal` also returns the document's sha256 and its validation verdict, so you can prove which rules the document passed. `--content-type` sets the input's media type for `validate`, `parse` and `convert`; without it, input starting with `%PDF-` is sent as `application/pdf` and anything else as `application/xml`.
 
 `generate --pdf` returns a hybrid PDF/A-3 with the XML embedded for `zugferd` and `facturx`. `xrechnung` and `peppol-bis` have no hybrid form, so `--pdf` returns a visualization with no XML inside it, and their legal document stays the XML.
 
@@ -41,8 +43,10 @@ beliq validate ./invoices
 # Validate from a pipe, machine-readable, fail the shell on any warning too
 cat invoice.xml | beliq validate - --json --fail-on warning
 
-# Generate an XRechnung from a JSON invoice, write the XML to stdout
-beliq generate examples/invoice.json --standard xrechnung > invoice.xml
+# Generate an XRechnung from the example invoice, write the XML to stdout.
+# The example ships in the npm package; in a clone of this repository it is
+# examples/invoice.json.
+beliq generate "$(npm root -g)/beliq-cli/examples/invoice.json" --standard xrechnung > invoice.xml
 
 # Convert a CII document to a Peppol BIS UBL document
 beliq convert invoice.xml --target-format peppol-bis --output peppol.xml

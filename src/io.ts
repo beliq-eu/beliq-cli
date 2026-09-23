@@ -9,9 +9,15 @@ import { IoError } from './errors.js'
  * streams touched.
  */
 export interface IO {
-  /** The machine payload (JSON, or a piped XML document). Written verbatim. */
+  /**
+   * A command's result, written verbatim: the --json payload, a produced XML
+   * document, or the human-readable report of validate, parse and me.
+   */
   stdout(chunk: string | Uint8Array): void
-  /** Human diagnostics and summaries. A trailing newline is added. */
+  /**
+   * Diagnostics, and generate's and convert's one-line summary, which must not
+   * mix into a piped document. A trailing newline is added.
+   */
   stderr(line: string): void
   /** Read an input document as raw bytes; "-" reads stdin. Throws IoError on failure. */
   readInput(pathOrDash: string): Promise<Uint8Array>

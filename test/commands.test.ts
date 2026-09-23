@@ -473,4 +473,26 @@ describe('convert command', () => {
       runConvert(parseArgs(['convert', 'x.xml', '--target-format', 'facturx']), { client }, io),
     ).rejects.toBeInstanceOf(UsageError)
   })
+
+  it('rejects an unknown --target-profile before calling the API', async () => {
+    const { client, calls } = fakeClient()
+    const { io } = recordingIO('<x/>')
+    await expect(
+      runConvert(parseArgs(['convert', 'x.xml', '--target-format', 'ubl', '--target-profile', 'bogus']), { client }, io),
+    ).rejects.toThrow('--target-profile must be one of: basicwl, en16931, extended, extended-ctc-fr')
+    expect(calls).toHaveLength(0)
+  })
+
+  it('passes a known --target-profile through', async () => {
+    const { client, calls } = fakeClient({
+      convert: { contentType: 'application/pdf', bytes: new Uint8Array([1]), meta: { targetFormat: 'zugferd' } },
+    })
+    const { io } = recordingIO('<x/>')
+    await runConvert(
+      parseArgs(['convert', 'x.xml', '--target-format', 'zugferd', '--target-profile', 'extended', '--output', 'o.pdf']),
+      { client },
+      io,
+    )
+    expect(calls.find((c) => c.method === 'convert')!.args[1].targetProfile).toBe('extended')
+  })
 })

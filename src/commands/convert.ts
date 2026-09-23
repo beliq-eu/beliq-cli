@@ -1,6 +1,7 @@
 import {
   LIVE_CONVERT_SOURCE_FORMATS,
   LIVE_CONVERT_TARGET_FORMATS,
+  LIVE_PROFILES,
   type ConvertSourceFormat,
   type ConvertTargetFormat,
   type FacturxProfile,
@@ -27,12 +28,16 @@ export async function runConvert(args: ParsedArgs, deps: Deps, io: IO): Promise<
     throw new UsageError(`--target-format is required (one of: ${LIVE_CONVERT_TARGET_FORMATS.join(', ')})`)
   }
   const sourceFormat = oneOf(flagStr(args, 'source-format'), LIVE_CONVERT_SOURCE_FORMATS, 'source-format')
+  // The flat list, not the per-standard one generate checks: the engine's
+  // convert route resolves a profile the same way for both hybrid targets, and
+  // the API ignores it for the others.
+  const targetProfile = oneOf(flagStr(args, 'target-profile'), LIVE_PROFILES, 'target-profile')
 
   const bytes = await io.readInput(file)
   const result = await deps.client.convert(bytes, {
     targetFormat: targetFormat as ConvertTargetFormat,
     sourceFormat: sourceFormat as ConvertSourceFormat | undefined,
-    targetProfile: flagStr(args, 'target-profile') as FacturxProfile | undefined,
+    targetProfile: targetProfile as FacturxProfile | undefined,
     contentType: flagStr(args, 'content-type'),
   })
 

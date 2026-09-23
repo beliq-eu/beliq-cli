@@ -18,7 +18,9 @@ Usage:
 
 validate accepts an XML document or a ZUGFeRD/Factur-X PDF. Pass several files,
 a shell glob, or a directory (its .xml/.pdf files, recursively) to validate a
-batch: a per-file verdict, a summary, and one exit code for the whole run.
+batch: a per-file verdict, a summary, and one exit code for the whole run. A
+directory is a batch even when it holds one file. validate --france-ctc also
+applies the French CTC rules (BR-FR-CTC).
 
 generate --seal also returns the document sha256 and validation verdict, so you
 can prove which rules the document passed; hashing the output reproduces it.

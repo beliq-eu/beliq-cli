@@ -26,7 +26,7 @@ beliq me                 [--json]
 
 `generate --pdf` returns a hybrid PDF/A-3 with the XML embedded for `zugferd` and `facturx`. `xrechnung` and `peppol-bis` have no hybrid form, so `--pdf` returns a visualization with no XML inside it, and their legal document stays the XML.
 
-`validate` accepts an XML document or a ZUGFeRD/Factur-X PDF. A file argument of `-` reads from stdin. Pass several files, a shell glob, or a directory (its `.xml`/`.pdf` files, recursively) to validate a batch: you get a per-file verdict, a summary, and one exit code for the whole run. `--json` prints the raw API result (a report object in batch mode) as the only thing on stdout, so it pipes cleanly.
+`validate` accepts an XML document or a ZUGFeRD/Factur-X PDF. A file argument of `-` reads from stdin. Pass several files, a shell glob, or a directory (its `.xml`/`.pdf` files, recursively) to validate a batch: you get a per-file verdict, a summary, and one exit code for the whole run. A directory is a batch even when it holds one file, so its `--json` shape does not depend on how many invoices it contains. `--france-ctc` also applies the French CTC rules (BR-FR-CTC) to each document. `--json` prints the raw API result (a report object in batch mode) as the only thing on stdout, so it pipes cleanly.
 
 ```bash
 # Validate a file, human-readable

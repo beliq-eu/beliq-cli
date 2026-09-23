@@ -15,6 +15,7 @@ const FATAL_API_STATUSES = new Set([401, 403, 429])
 interface BatchOptions {
   format: ValidateFormat | undefined
   contentType: string | undefined
+  franceCtc: true | undefined
   failOn: FailOn
   json: boolean
 }
@@ -22,15 +23,19 @@ interface BatchOptions {
 /**
  * Validate one or many documents against beliq's authority-pinned rules.
  *
- * One input (a file or `-`) keeps the classic per-document output. Multiple
- * files, or a directory (its `.xml`/`.pdf` files, recursively), switch to a
- * batch: a per-file verdict, an aggregate summary, and a batch exit code (0 all
- * pass, 1 some document fails --fail-on, 3 some file could not be checked).
+ * One file (or `-`) named on its own keeps the classic per-document output.
+ * Multiple inputs, or a directory (its `.xml`/`.pdf` files, recursively), switch
+ * to a batch: a per-file verdict, an aggregate summary, and a batch exit code (0
+ * all pass, 1 some document fails --fail-on, 3 some file could not be checked).
+ * A directory stays a batch even when it holds one invoice, so the --json shape
+ * follows what was asked for rather than how many files were found.
  */
 export async function runValidate(args: ParsedArgs, deps: Deps, io: IO): Promise<number> {
   const format = oneOf(flagStr(args, 'format'), LIVE_VALIDATE_FORMATS, 'format') as ValidateFormat | undefined
   const failOn = (oneOf(flagStr(args, 'fail-on'), FAIL_ON, 'fail-on') ?? 'error') as FailOn
   const contentType = flagStr(args, 'content-type')
+  // Sent only when set: the API's own default decides otherwise.
+  const franceCtc = flagBool(args, 'france-ctc') ? true : undefined
   const json = flagBool(args, 'json')
 
   if (args.positionals.length === 0) {
@@ -45,13 +50,16 @@ export async function runValidate(args: ParsedArgs, deps: Deps, io: IO): Promise
     throw new UsageError('cannot mix "-" (stdin) with other inputs')
   }
 
-  if (files.length === 1) {
-    const result = await deps.client.validate(await io.readInput(files[0]), { format, contentType })
+  // expandInputs returns a named file as given and a directory as the files
+  // inside it, so a single input that comes back unchanged was a file.
+  const single = args.positionals.length === 1 && files.length === 1 && files[0] === args.positionals[0]
+  if (single) {
+    const result = await deps.client.validate(await io.readInput(files[0]), { format, contentType, franceCtc })
     io.stdout(json ? `${JSON.stringify(result, null, 2)}\n` : `${renderValidationHuman(result)}\n`)
     return computeExitCode(result, failOn)
   }
 
-  return runBatch(files, { format, contentType, failOn, json }, deps, io)
+  return runBatch(files, { format, contentType, franceCtc, failOn, json }, deps, io)
 }
 
 async function runBatch(files: string[], opts: BatchOptions, deps: Deps, io: IO): Promise<number> {
@@ -60,7 +68,11 @@ async function runBatch(files: string[], opts: BatchOptions, deps: Deps, io: IO)
   for (const file of files) {
     try {
       const bytes = await io.readInput(file)
-      const result = await deps.client.validate(bytes, { format: opts.format, contentType: opts.contentType })
+      const result = await deps.client.validate(bytes, {
+        format: opts.format,
+        contentType: opts.contentType,
+        franceCtc: opts.franceCtc,
+      })
       rows.push({ file, result, fails: computeExitCode(result, opts.failOn) !== EXIT.OK })
     } catch (err) {
       if (err instanceof BeliqApiError && FATAL_API_STATUSES.has(err.status)) throw err

@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
+import { mkdtemp, writeFile, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import { BeliqApiError } from '@beliq/sdk'
@@ -11,6 +13,7 @@ import { runMe } from '../src/commands/me.js'
 import { runParse } from '../src/commands/parse.js'
 import { runGenerate } from '../src/commands/generate.js'
 import { runConvert } from '../src/commands/convert.js'
+import { nodeIO, type IO } from '../src/io.js'
 import { recordingIO } from './helpers.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
@@ -117,6 +120,14 @@ describe('validate command', () => {
     )
     expect(calls).toHaveLength(0)
   })
+
+  it('sends franceCtc only when --france-ctc is given', async () => {
+    const { client, calls } = fakeClient()
+    await runValidate(parseArgs(['validate', 'x.xml', '--france-ctc']), { client }, recordingIO('<x/>').io)
+    await runValidate(parseArgs(['validate', 'x.xml']), { client }, recordingIO('<x/>').io)
+    expect(calls[0].args[1].franceCtc).toBe(true)
+    expect(calls[1].args[1].franceCtc).toBeUndefined()
+  })
 })
 
 /**
@@ -218,6 +229,34 @@ describe('validate command (batch)', () => {
     await expect(
       runValidate(parseArgs(['validate', 'emptydir']), { client }, io),
     ).rejects.toBeInstanceOf(UsageError)
+  })
+
+  it('keeps a directory holding one invoice in batch mode', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'beliq-cli-batch-'))
+    try {
+      const file = path.join(dir, 'only.xml')
+      await writeFile(file, '<a/>')
+      const { client, calls } = queueClient([fixture('validate-valid.json')])
+      const out: string[] = []
+      const io: IO = { ...nodeIO(), stdout: (chunk) => out.push(String(chunk)), stderr: () => {} }
+
+      const code = await runValidate(parseArgs(['validate', dir, '--json']), { client }, io)
+
+      expect(code).toBe(0)
+      expect(calls).toHaveLength(1)
+      const report = JSON.parse(out.join(''))
+      expect(report).toMatchObject({ total: 1, passed: 1, failed: 0, errored: 0 })
+      expect(report.results[0]).toMatchObject({ file, status: 'pass', valid: true })
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('sends franceCtc for every file in a batch', async () => {
+    const { client, calls } = queueClient([fixture('validate-valid.json'), fixture('validate-valid.json')])
+    const { io } = recordingIO({ 'a.xml': '<a/>', 'b.xml': '<b/>' })
+    await runValidate(parseArgs(['validate', 'a.xml', 'b.xml', '--france-ctc']), { client }, io)
+    expect(calls.map((c) => c.args[1].franceCtc)).toEqual([true, true])
   })
 })
 

@@ -27,10 +27,6 @@ jobs:
       - run: npm run build
       - run: npm test
       - run: npm run scrub:check
-      - name: Temporary, fails the first matrix leg to prove ci-ok fails
-        run: test "$JOB_INDEX" != 0
-        env:
-          JOB_INDEX: ${{ strategy.job-index }}
 
   # test:integration drives the real command functions against the live beliq API
   # and spends 4 documents (validate, generate, convert, parse; `me` is

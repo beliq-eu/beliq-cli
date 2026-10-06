@@ -1,8 +1,9 @@
 name: Release
 
 # Publishes beliq-cli to npm via Trusted Publishing (OIDC) - no NPM_TOKEN
-# needed. Provenance attestations are generated automatically. Trigger by
-# pushing a version tag (e.g. v0.1.1) or running the workflow manually.
+# needed. Provenance attestations are generated automatically. A release runs
+# from a vX.Y.Z tag: push the tag, or dispatch the workflow on one. A dispatch
+# on a branch ends the run green and publishes nothing.
 #
 # Prerequisite: @beliq/sdk must already be on npm, since this package depends on
 # it and CI resolves it from the registry.
@@ -25,14 +26,48 @@ concurrency:
   group: ${{ github.workflow }}
   cancel-in-progress: false
 
+# Per job, not here: zizmor's excessive-permissions audit refuses a workflow-wide
+# `id-token: write` once more than one job could mint the token.
 permissions:
   contents: read
-  id-token: write # required for npm Trusted Publishing (OIDC)
 
 jobs:
+  # workflow_dispatch offers every branch, so a release can be started from a
+  # place that must never publish. That is a mistake, not a fault, so the run
+  # ends green with a notice and nothing is published.
+  #
+  # Gating at job level rather than inside `publish` keeps the whole publish job
+  # behind one decision, so a step added to it later cannot run on a refused
+  # dispatch. It also leaves the `release` environment unrequested on a non-tag
+  # ref, which is what lets the run end green at all: the environment's `v*.*.*`
+  # tag policy fails any job it blocks, whatever that job's own first step does.
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # Reads nothing, publishes nothing. The npm OIDC token is minted only in
+    # `publish`, inside the `release` environment.
+    permissions: {}
+    outputs:
+      release: ${{ steps.decide.outputs.release }}
+    steps:
+      - name: Release only from a vX.Y.Z tag
+        id: decide
+        run: |
+          if [[ "$GITHUB_REF" =~ ^refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "release=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::a release runs from a vX.Y.Z tag, not from $GITHUB_REF, so nothing was published"
+          fi
+
   publish:
+    needs: gate
+    if: needs.gate.outputs.release == 'true'
     runs-on: ubuntu-latest # Trusted Publishing requires a cloud-hosted runner
     timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write # required for npm Trusted Publishing (OIDC)
     # The half an edit to this file cannot remove. GitHub refuses to start the
     # job unless the ref matches this environment's `v*.*.*` tag policy, and
     # npm only accepts a Trusted Publishing token from a run in it.
@@ -42,16 +77,13 @@ jobs:
         with:
           fetch-depth: 0 # the guard below needs main's history
 
-      # workflow_dispatch offers every branch, and a tag can point at any commit.
-      # This stops a release from the wrong place by mistake. It is no defence
-      # against an edit to this file: a tag runs the workflow as of its commit.
-      # The `release` environment above is that defence.
-      - name: Release only from a vX.Y.Z tag on main
+      # `gate` has settled that the ref is a vX.Y.Z tag; a tag can still point
+      # at any commit, so this is the other half. It is no defence against an
+      # edit to this file: a tag runs the workflow as of its commit. The
+      # `release` environment above is that defence. Unlike a dispatch from a
+      # branch, a tag off main is a fault worth a red run.
+      - name: The tag is on main
         run: |
-          if ! [[ "$GITHUB_REF" =~ ^refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "::error::a release runs from a vX.Y.Z tag, not from $GITHUB_REF"
-            exit 1
-          fi
           if ! git merge-base --is-ancestor HEAD origin/main; then
             echo "::error::$GITHUB_REF_NAME points at $(git rev-parse --short HEAD), which is not on main"
             exit 1

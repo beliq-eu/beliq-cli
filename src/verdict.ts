@@ -46,15 +46,17 @@ export function franceBlockLines(
   const entry = ((result.warnings ?? []) as Finding[]).find((w) => w.ruleId === FRANCE_BLOCK_ENTRY)
   const idLine = `France CTC blocking rule ids: ${ids.join(', ')}`
   if (!entry) return [idLine]
-  return ids.every((id) => entry.message.includes(id)) ? [entry.message] : [entry.message, idLine]
+  const named = new Set(entry.message.split(/[^A-Za-z0-9_-]+/))
+  return ids.every((id) => named.has(id)) ? [entry.message] : [entry.message, idLine]
 }
 
 /**
- * The embedded file's name comes from the uploaded PDF. Control characters and
- * line separators are replaced so a crafted name cannot forge lines of output.
+ * The embedded file's name comes from the uploaded PDF. Control and format
+ * characters, line separators and the double quote are replaced, so a crafted
+ * name can neither start a line of its own nor close the quotes around it.
  */
 function printable(name: string): string {
-  return name.replace(/[\p{Cc}\p{Zl}\p{Zp}]/gu, '?')
+  return name.replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}"]/gu, '?')
 }
 
 /** What the API says about a PDF input: which embedded file was read, and that the PDF was not checked. */

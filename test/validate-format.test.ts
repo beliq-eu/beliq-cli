@@ -87,6 +87,9 @@ describe('renderValidationHuman', () => {
     )
     const extra = { ...result, franceCtcBlockingRuleIds: [...(result.franceCtcBlockingRuleIds ?? []), 'BR-FR-99'] }
     expect(renderValidationHuman(extra)).toContain('France CTC blocking rule ids: BR-FR-05_BT-22_AAB')
+    // An id that is the start of a named one is not taken as named.
+    const prefix = { ...result, franceCtcBlockingRuleIds: ['BR-FR-16_BT-15'] }
+    expect(renderValidationHuman(prefix)).toContain('France CTC blocking rule ids: BR-FR-16_BT-15')
   })
 
   it('replaces control characters in the name of the embedded file', () => {
@@ -101,7 +104,7 @@ describe('renderValidationHuman', () => {
     } as ValidationResult
     const text = renderValidationHuman(result)
     expect(text.split('\n')).toHaveLength(3)
-    expect(text).toContain('the embedded XML "x"?INVALID?[2K"')
+    expect(text).toContain('the embedded XML "x??INVALID?[2K"')
   })
 
   it('prints no France lines for a result without the field', () => {

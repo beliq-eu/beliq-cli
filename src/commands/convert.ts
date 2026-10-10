@@ -6,6 +6,7 @@ import {
   type ConvertTargetFormat,
   type FacturxProfile,
 } from '@beliq/sdk'
+import { sniffContentType } from '@beliq/sdk/helpers'
 import { flagStr, oneOf, requirePositional, type ParsedArgs } from '../args.js'
 import { UsageError } from '../errors.js'
 import type { Deps } from '../deps.js'
@@ -14,10 +15,6 @@ import { emitDocument } from './emit.js'
 
 /** The targets for which the API can hand a hybrid PDF source back as a PDF. */
 const HYBRID_TARGETS = new Set<string>(['facturx', 'zugferd'])
-
-function isPdf(bytes: Uint8Array): boolean {
-  return new TextDecoder('latin1').decode(bytes.subarray(0, 5)) === '%PDF-'
-}
 
 /**
  * Convert a document from one EN 16931 format to another. The API returns XML
@@ -41,7 +38,7 @@ export async function runConvert(args: ParsedArgs, deps: Deps, io: IO): Promise<
   const targetProfile = oneOf(flagStr(args, 'target-profile'), LIVE_PROFILES, 'target-profile')
 
   const bytes = await io.readInput(file)
-  if (isPdf(bytes) && HYBRID_TARGETS.has(targetFormat) && !flagStr(args, 'output')) {
+  if (sniffContentType(bytes) === 'application/pdf' && HYBRID_TARGETS.has(targetFormat) && !flagStr(args, 'output')) {
     throw new UsageError(`a PDF source converted to ${targetFormat} can come back as a PDF and needs --output <file>`)
   }
   const result = await deps.client.convert(bytes, {
@@ -77,6 +74,6 @@ export async function runConvert(args: ParsedArgs, deps: Deps, io: IO): Promise<
       livemode: result.meta.livemode,
       contentType: result.contentType,
     },
-    summary: `Converted ${from}to ${to}${sandbox}.${checked}${lost}`,
+    summary: `Converted ${from}to ${to}, returned as ${kind === 'pdf' ? 'a PDF' : 'XML'}${sandbox}.${checked}${lost}`,
   })
 }

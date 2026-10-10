@@ -588,7 +588,7 @@ describe('convert command', () => {
     const code = await runConvert(parseArgs(['convert', 'x.xml', '--target-format', 'facturx']), { client }, io)
     expect(code).toBe(0)
     expect(out()).toBe('<rsm:CrossIndustryInvoice/>\n')
-    expect(err()).toBe('Converted cii to facturx. The API validated the converted XML before returning it.')
+    expect(err()).toBe('Converted cii to facturx, returned as XML. The API validated the converted XML before returning it.')
   })
 
   it('refuses a PDF source for a hybrid target without --output before calling the API', async () => {

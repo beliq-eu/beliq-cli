@@ -5,7 +5,7 @@ import { renderParseHuman } from '../format/parse.js'
 import type { Deps } from '../deps.js'
 import type { IO } from '../io.js'
 
-/** Parse one document into a structured EN 16931 invoice. */
+/** Parse one document into a structured EN 16931 invoice, with the API's warnings about what it did not return. */
 export async function runParse(args: ParsedArgs, deps: Deps, io: IO): Promise<number> {
   const file = requirePositional(args, 'beliq parse <file|->')
   const format = oneOf(flagStr(args, 'format'), LIVE_PARSE_FORMATS, 'format')

@@ -21,12 +21,13 @@ interface BatchOptions {
 }
 
 /**
- * Validate one or many documents against beliq's authority-pinned rules.
+ * Validate one or many documents. Each verdict names how deep its check went.
  *
  * One file (or `-`) named on its own keeps the classic per-document output.
  * Multiple inputs, or a directory (its `.xml`/`.pdf` files, recursively), switch
  * to a batch: a per-file verdict, an aggregate summary, and a batch exit code (0
- * all pass, 1 some document fails --fail-on, 3 some file could not be checked).
+ * all pass, 1 some document fails --fail-on or carries France CTC blocking rule
+ * ids, 3 some file could not be checked).
  * A directory stays a batch even when it holds one invoice, so the --json shape
  * follows what was asked for rather than how many files were found.
  */

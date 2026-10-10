@@ -84,8 +84,8 @@ export async function main(argv: string[], io: IO, env: NodeJS.ProcessEnv = proc
 
 /**
  * An API error on stderr, followed by the rules a rejected document failed when
- * the API names them (a 422 from generate carries its validation result in
- * `details`). With --json the error object goes to stdout as well, so a script
+ * the API names them (a 422 from generate or convert carries the validation
+ * result of the document it refused in `details`). With --json the error object goes to stdout as well, so a script
  * reading stdout gets a payload on failure too.
  */
 function reportApiError(err: BeliqApiError, args: ParsedArgs, io: IO): void {

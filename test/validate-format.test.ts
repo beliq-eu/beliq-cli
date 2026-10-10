@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
-import { renderValidationHuman } from '../src/format/validate.js'
+import { renderBatchHuman, renderValidationHuman } from '../src/format/validate.js'
 import type { ValidationResult } from '@beliq/sdk'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
@@ -33,7 +33,85 @@ describe('renderValidationHuman', () => {
   it('omits the table and the profile/ruleset clauses when there are no issues', () => {
     const result = { valid: true, format: 'ubl', errors: [], warnings: [] } as unknown as ValidationResult
     const text = renderValidationHuman(result)
-    expect(text).toBe('VALID  ubl\n0 errors, 0 warnings')
+    expect(text).toBe('VALID  ubl  check depth not stated\n0 errors, 0 warnings')
     expect(text).not.toContain('SEVERITY')
+  })
+
+  // The live-validate-* fixtures are answers of the live API, recorded on
+  // 2026-10-11 at document version 0.15.0 and stored as they came.
+
+  it('prints the badge label the API sent beside the verdict', () => {
+    expect(renderValidationHuman(fixture('live-validate-authority.json')).split('\n')[0]).toBe(
+      'VALID  ubl (profile xrechnung)  Authority-checked  checked against Schematron 1.3.16',
+    )
+    expect(renderValidationHuman(fixture('live-validate-schema.json')).split('\n')[0]).toBe(
+      'VALID  fatturapa (profile italy-fatturapa-ordinaria-fpr12)  Schema-checked',
+    )
+  })
+
+  it('marks a verdict the API sent no badge for, and names no depth', () => {
+    const result = fixture('live-validate-nobadge.json')
+    expect(result.verificationBadgeLabel).toBeUndefined()
+    expect(renderValidationHuman(result)).toBe(
+      'VALID  fatturapa (profile italy-fatturapa-pa-fpa12)  check depth not stated\n0 errors, 0 warnings',
+    )
+  })
+
+  it('puts the API message and the rule ids of a France CTC block under a VALID verdict', () => {
+    const result = fixture('live-validate-france-previous.json')
+    expect(result.valid).toBe(true)
+    const lines = renderValidationHuman(result).split('\n')
+    expect(lines[0]).toBe('VALID  cii  Authority-checked  checked against Schematron 1.3.16')
+    expect(lines[2]).toBe('Ruleset channel: previous; the retained ruleset is served until 2027-05-16')
+    expect(lines[3]).toBe(result.warnings.find((w) => w.ruleId === 'FRANCE_CTC_FINDINGS_BLOCK_TRANSMISSION')?.message)
+    expect(lines[4]).toBe(`France CTC blocking rule ids: ${result.franceCtcBlockingRuleIds?.join(', ')}`)
+    expect(lines[5]).toBe('This file is reported as failed (exit 1) under every --fail-on.')
+  })
+
+  it('prints no France lines for a result without the field', () => {
+    expect(renderValidationHuman(fixture('live-validate-authority.json'))).not.toContain('France CTC')
+  })
+
+  it('says which embedded file a PDF verdict is about and that the PDF was not checked', () => {
+    const result = {
+      ...fixture('live-validate-authority.json'),
+      pdfInput: {
+        containerChecked: false,
+        attachmentName: 'factur-x.xml',
+        attachmentFoundBy: 'associated-file',
+        attachmentCandidates: 1,
+      },
+    } as ValidationResult
+    expect(renderValidationHuman(result)).toContain(
+      'PDF input: the verdict is about the embedded XML "factur-x.xml" (found by associated-file). The PDF itself was not checked.',
+    )
+    const two = { ...result, pdfInput: { ...result.pdfInput!, attachmentCandidates: 2 } } as ValidationResult
+    expect(renderValidationHuman(two)).toContain(
+      'The PDF itself was not checked. 2 embedded files could be taken for the invoice, and nothing compared them.',
+    )
+  })
+
+  it('names neither a depth nor a ruleset for a result nothing validated', () => {
+    const result = { valid: true, verified: false, format: 'cii', schematronVersion: '1.3.16', errors: [], warnings: [] }
+    expect(renderValidationHuman(result as unknown as ValidationResult)).toBe('NOT VALIDATED  cii\n0 errors, 0 warnings')
+  })
+})
+
+describe('renderBatchHuman', () => {
+  it('shows each file\'s check depth and names the files a France CTC block fails', () => {
+    const france = fixture('live-validate-france-previous.json')
+    const text = renderBatchHuman([
+      { file: 'a.xml', result: fixture('live-validate-authority.json'), fails: false },
+      { file: 'b.xml', result: fixture('live-validate-nobadge.json'), fails: false },
+      { file: 'fr.xml', result: france, fails: true },
+      { file: 'gone.xml', error: 'could not read' },
+    ])
+    expect(text).toMatch(/^STATUS\s+ERR\s+WARN\s+DEPTH\s+FILE$/m)
+    expect(text).toMatch(/^PASS\s+0\s+1\s+Authority-checked\s+a\.xml$/m)
+    expect(text).toMatch(/^PASS\s+0\s+0\s+check depth not stated\s+b\.xml$/m)
+    expect(text).toMatch(/^FAIL\s+0\s+10\s+Authority-checked\s+fr\.xml$/m)
+    expect(text).toMatch(/^ERROR\s+-\s+-\s+-\s+gone\.xml {2}\(could not read\)$/m)
+    expect(text).toContain(`fr.xml: France CTC blocking rule ids: ${france.franceCtcBlockingRuleIds?.join(', ')}`)
+    expect(text).toContain('4 files: 2 passed, 1 failed, 1 errored')
   })
 })

@@ -10,11 +10,13 @@ import { UsageError } from '../errors.js'
 import type { Deps } from '../deps.js'
 import type { IO } from '../io.js'
 import { emitDocument } from './emit.js'
+import { checkDepth, verdictWord } from '../verdict.js'
 
 /**
- * Generate a compliant document from an EN 16931 invoice given as JSON. XML is
- * printed to stdout (or --output); a PDF must go to --output. verify defaults on
- * so a non-compliant document fails closed rather than being handed back.
+ * Generate a document from an EN 16931 invoice given as JSON. XML is printed to
+ * stdout (or --output); a PDF must go to --output. verify defaults on, so the
+ * API refuses a document that fails its own validation instead of handing it
+ * back. The summary names how deep that validation went.
  */
 export async function runGenerate(args: ParsedArgs, deps: Deps, io: IO): Promise<number> {
   const file = requirePositional(args, 'beliq generate <invoice.json|-> --standard <standard>')
@@ -58,12 +60,18 @@ export async function runGenerate(args: ParsedArgs, deps: Deps, io: IO): Promise
     // render theirs either way, so this is inert for them.
     template: output === 'pdf' ? 'standard' : undefined,
     verify: !flagBool(args, 'no-verify'),
-    seal,
+    // Always the JSON envelope: it is the only response that carries the
+    // verdict's check depth, and the API does the same work for either shape.
+    // --seal decides whether the hash and the verdict are printed.
+    seal: true,
   })
 
-  const checked = result.meta.schematronVersion
-    ? `, checked against Schematron ${result.meta.schematronVersion}`
-    : ''
+  const verdict = result.validationResult
+  // `verified: false` is the API's statement that --no-verify skipped validation.
+  const ran = verdict?.verified !== false
+  const checked =
+    ran && result.meta.schematronVersion ? `, checked against Schematron ${result.meta.schematronVersion}` : ''
+  const depth = verdict === undefined ? '' : ran ? `, ${checkDepth(verdict)}` : ', not validated'
   const sandbox = result.meta.livemode === false ? ' (sandbox)' : ''
   const meta: Record<string, unknown> = {
     output,
@@ -72,16 +80,15 @@ export async function runGenerate(args: ParsedArgs, deps: Deps, io: IO): Promise
     pdfKind: result.meta.pdfKind,
     outputEnvelope: result.meta.outputEnvelope,
     livemode: result.meta.livemode,
+    verificationBadge: verdict?.verificationBadge,
+    verificationBadgeLabel: verdict?.verificationBadgeLabel,
   }
-  let summary = `Generated a ${standard} ${output} document${checked}${sandbox}.`
+  let summary = `Generated a ${standard} ${output} document${checked}${depth}${sandbox}.`
   if (seal) {
     meta.sha256 = result.sha256
     meta.rulesetSha256 = result.meta.rulesetSha256
-    meta.validationResult = result.validationResult
-    const verdict = result.validationResult
-      ? ` Validation ${result.validationResult.valid ? 'passed' : 'failed'}.`
-      : ''
-    summary += ` sha256 ${result.sha256}.${verdict}`
+    meta.validationResult = verdict
+    summary += ` sha256 ${result.sha256}.${verdict ? ` Verdict: ${verdictWord(verdict)}.` : ''}`
   }
 
   return emitDocument(io, args, { kind: output, bytes: result.bytes, meta, summary })

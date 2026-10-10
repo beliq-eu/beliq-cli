@@ -100,10 +100,12 @@ describe('main exit codes', () => {
   })
 
   it('exits 4 when --output already exists', async () => {
-    const api = await listen((_req, res) => {
-      res.writeHead(200, { 'Content-Type': 'application/xml' })
-      res.end('<Invoice/>')
-    })
+    const api = await listen((_req, res) =>
+      sendJson(res, 200, {
+        success: true,
+        data: { output: Buffer.from('<Invoice/>').toString('base64'), contentType: 'application/xml', sha256: 'x' },
+      }),
+    )
     try {
       const { io, err } = capturingIO()
       const code = await main(

@@ -1,7 +1,10 @@
 export const EXIT = {
   /** Success, or a document that passed validation. */
   OK: 0,
-  /** A document that failed validation per the chosen --fail-on threshold. */
+  /**
+   * A document that failed validation per the chosen --fail-on threshold, or one
+   * whose result carries France CTC blocking rule ids.
+   */
   INVALID: 1,
   /** A usage problem: bad flag, missing argument, missing API key, PDF without --output. */
   USAGE: 2,
@@ -21,16 +24,20 @@ interface ValidationLike {
   valid: boolean
   errors?: unknown[]
   warnings?: unknown[]
+  franceCtcBlockingRuleIds?: string[]
 }
 
 /**
  * The CI contract: EXIT.OK when the document passes the chosen threshold,
  * EXIT.INVALID otherwise. `error` (default) fails on any error; `warning` also
- * fails on any warning.
+ * fails on any warning. A result that carries France CTC blocking rule ids
+ * fails under both: the API reports them where `valid` is true, and a default
+ * run would otherwise pass a document a French platform refuses.
  */
 export function computeExitCode(result: ValidationLike, failOn: FailOn): number {
   const errorCount = result.errors?.length ?? 0
   const warningCount = result.warnings?.length ?? 0
+  if ((result.franceCtcBlockingRuleIds?.length ?? 0) > 0) return EXIT.INVALID
   const failsOnError = !result.valid || errorCount > 0
   if (failOn === 'warning') return failsOnError || warningCount > 0 ? EXIT.INVALID : EXIT.OK
   return failsOnError ? EXIT.INVALID : EXIT.OK

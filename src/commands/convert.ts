@@ -12,14 +12,21 @@ import type { Deps } from '../deps.js'
 import type { IO } from '../io.js'
 import { emitDocument } from './emit.js'
 
-/** Convert targets that produce a hybrid PDF rather than an XML document. */
-const PDF_TARGETS = new Set<string>(['facturx', 'zugferd'])
+/** The targets for which the API can hand a hybrid PDF source back as a PDF. */
+const HYBRID_TARGETS = new Set<string>(['facturx', 'zugferd'])
+
+function isPdf(bytes: Uint8Array): boolean {
+  return new TextDecoder('latin1').decode(bytes.subarray(0, 5)) === '%PDF-'
+}
 
 /**
- * Convert a document from one EN 16931 format to another. An XML target is
- * printed to stdout (or --output); a PDF target (facturx / zugferd) must go to
- * --output. Elements the conversion could not carry across are surfaced so a
- * lossy conversion is visible.
+ * Convert a document from one EN 16931 format to another. The API returns XML
+ * for every target, facturx and zugferd included: it does not wrap an XML
+ * source into a hybrid PDF. A PDF comes back only when a hybrid PDF source
+ * already is the target, and a PDF must go to --output. A 200 means the API
+ * validated the converted XML before returning it; it carries no verdict, so
+ * no check depth is printed. The count of lost elements is what the engine
+ * recorded, and a loss it does not detect is not in it.
  */
 export async function runConvert(args: ParsedArgs, deps: Deps, io: IO): Promise<number> {
   const file = requirePositional(args, 'beliq convert <file|-> --target-format <format>')
@@ -34,6 +41,9 @@ export async function runConvert(args: ParsedArgs, deps: Deps, io: IO): Promise<
   const targetProfile = oneOf(flagStr(args, 'target-profile'), LIVE_PROFILES, 'target-profile')
 
   const bytes = await io.readInput(file)
+  if (isPdf(bytes) && HYBRID_TARGETS.has(targetFormat) && !flagStr(args, 'output')) {
+    throw new UsageError(`a PDF source converted to ${targetFormat} can come back as a PDF and needs --output <file>`)
+  }
   const result = await deps.client.convert(bytes, {
     targetFormat: targetFormat as ConvertTargetFormat,
     sourceFormat: sourceFormat as ConvertSourceFormat | undefined,
@@ -41,13 +51,17 @@ export async function runConvert(args: ParsedArgs, deps: Deps, io: IO): Promise<
     contentType: flagStr(args, 'content-type'),
   })
 
-  const kind: 'xml' | 'pdf' = PDF_TARGETS.has(targetFormat) ? 'pdf' : 'xml'
+  const kind: 'xml' | 'pdf' = result.contentType.includes('pdf') ? 'pdf' : 'xml'
   const from = result.meta.sourceFormat ? `${result.meta.sourceFormat} ` : ''
   const to = result.meta.targetFormat ?? targetFormat
   const lost =
     result.meta.lostElementsCount && result.meta.lostElementsCount > 0
-      ? ` ${result.meta.lostElementsCount} element(s) could not be carried across.`
+      ? ` The engine recorded ${result.meta.lostElementsCount} source element(s) with no target equivalent.`
       : ''
+  const checked =
+    kind === 'pdf'
+      ? ' The API validated the embedded XML before returning it; the PDF around it was not checked.'
+      : ' The API validated the converted XML before returning it.'
 
   return emitDocument(io, args, {
     kind,
@@ -60,6 +74,6 @@ export async function runConvert(args: ParsedArgs, deps: Deps, io: IO): Promise<
       lostElements: result.meta.lostElements,
       contentType: result.contentType,
     },
-    summary: `Converted ${from}to ${to}.${lost}`,
+    summary: `Converted ${from}to ${to}.${checked}${lost}`,
   })
 }

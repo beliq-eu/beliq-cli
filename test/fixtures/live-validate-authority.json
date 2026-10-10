@@ -1,0 +1,44 @@
+{
+  "valid": true,
+  "format": "ubl",
+  "errors": [],
+  "warnings": [
+    {
+      "ruleId": "BR-DE-TMP-32",
+      "severity": "info",
+      "message": "[BR-DE-TMP-32] Eine Rechnung sollte zur Angabe des Liefer-/Leistungsdatums entweder BT-72 \"Actual delivery date\", BG-14 \"Invoicing period\" oder in jeder Rechnungsposition BG-26 \"Invoice line period\" enthalten.",
+      "location": "/Q{urn:oasis:names:specification:ubl:schema:xsd:Invoice-2}Invoice[1]"
+    }
+  ],
+  "sha256": "0efafa05c74d06ff25bbc2b70bcb2e9f14b97d22a4b33c5e92838bf2cc8986cb",
+  "rulesetSha256": "909a19e0e2f276b46ee2494fd841f4b5b091d03fceb444c6fe5e3db3760fc5b8",
+  "rulesetArtifacts": [
+    {
+      "key": "en16931_ubl_schematron",
+      "version": "1.3.16",
+      "fileSha256": "39f9d282867f1a49e7708d9e29a53da89643e1ee56f10cec1ebcf1277595fcbd"
+    },
+    {
+      "key": "ubl_xsd",
+      "version": "2.1",
+      "fileSha256": "40fae8cb436f3a9506d7acce65ba162caef3b0bed4d5cbc0992b2153ded4edf4"
+    },
+    {
+      "key": "xrechnung_schematron",
+      "version": "XRechnung-2.6.0",
+      "fileSha256": "aa7d495e02990d88a9dc91b5eceb3349f7ee5565241d93ef99e90e1760fdd70f"
+    },
+    {
+      "key": "xrechnung_severity_overrides",
+      "version": "2026-08-31",
+      "fileSha256": "3db6bcddfd30cc9d51ac7c6c156ae2621c27d471a65f9db98db5c3b081ab6713"
+    }
+  ],
+  "driftCheckedAt": "2026-10-10T11:21:32Z",
+  "profileDetected": "xrechnung",
+  "verificationTier": "conformance-verified",
+  "verificationBadge": "authority-verified",
+  "verificationBadgeLabel": "Authority-checked",
+  "schematronVersion": "1.3.16",
+  "ciusVersion": "XRechnung-2.6.0"
+}

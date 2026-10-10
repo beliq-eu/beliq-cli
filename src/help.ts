@@ -11,7 +11,7 @@ export const HELP = `beliq: validate, generate, parse, and convert EU e-invoices
 
 Usage:
   beliq validate <file|dir|-> [<file|dir> ...] [--format auto|cii|ubl] [--fail-on error|warning] [--france-ctc] [--content-type <type>] [--json]
-  beliq generate <invoice.json|-> --standard xrechnung|zugferd|facturx|peppol-bis [--pdf] [--facturx-profile basicwl|en16931|extended|extended-ctc-fr] [--no-verify] [--seal] [--output <file>] [--json]
+  beliq generate <invoice.json|-> --standard xrechnung|zugferd|facturx|peppol-bis|fatturapa|facturae|eslog|ksef [--pdf] [--facturx-profile basicwl|en16931|extended|extended-ctc-fr] [--no-verify] [--seal] [--output <file>] [--json]
   beliq parse    <file|->  [--format auto|cii|ubl] [--content-type <type>] [--json]
   beliq convert  <file|->  --target-format cii|ubl|zugferd|facturx|xrechnung|peppol-bis [--source-format auto|cii|ubl|zugferd|facturx|xrechnung|peppol-bis] [--target-profile basicwl|en16931|extended|extended-ctc-fr] [--content-type <type>] [--output <file>] [--json]
   beliq me                 [--json]
@@ -19,14 +19,25 @@ Usage:
 validate accepts an XML document or a ZUGFeRD/Factur-X PDF. Pass several files,
 a shell glob, or a directory (its .xml/.pdf files, recursively) to validate a
 batch: a per-file verdict, a summary, and one exit code for the whole run. A
-directory is a batch even when it holds one file. validate --france-ctc also
-applies the French CTC rules (BR-FR-CTC).
+directory is a batch even when it holds one file. For a PDF the verdict is about
+the embedded XML; the PDF itself is not checked.
+
+Each verdict carries the check depth as the API states it, or "check depth not
+stated" where the API states none. What the depths mean:
+https://docs.beliq.eu/compliance/how-verification-works/
+
+validate --france-ctc also applies the French CTC rules (BR-FR-CTC). A result
+that carries France CTC blocking rule ids fails the file with exit 1 under
+every --fail-on, also where the verdict is VALID.
 
 generate --facturx-profile applies to zugferd and facturx; extended-ctc-fr is
 Factur-X only.
 
 generate --seal also returns the document sha256 and validation verdict, so you
 can prove which rules the document passed; hashing the output reproduces it.
+
+convert returns XML for every target, facturx and zugferd included. A PDF comes
+back only when a hybrid PDF source already is the target, and needs --output.
 
 --pdf gives a hybrid PDF/A-3 with the XML embedded for zugferd and facturx.
 xrechnung and peppol-bis have no hybrid form, so --pdf returns a visualization
@@ -45,13 +56,15 @@ Global options:
 
 Exit codes:
   0  success, or a valid document
-  1  document invalid (validate, per --fail-on)
+  1  document invalid (validate, per --fail-on), or France CTC blocking rule
+     ids in the result
   2  usage error
   3  beliq API error, the API could not be reached, or an unexpected error
   4  I/O error
 
 In batch mode the code covers the whole run: 0 if every file passes, 1 if a
-document fails --fail-on, 3 if any file could not be checked.
+document fails --fail-on or carries France CTC blocking rule ids, 3 if any file
+could not be checked.
 
 A file argument of "-" reads from stdin. Set BELIQ_API_KEY (or pass --api-key)
 with a key from the beliq dashboard; the free tier is enough to evaluate.

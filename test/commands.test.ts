@@ -273,6 +273,35 @@ describe('me command', () => {
 })
 
 describe('parse command', () => {
+  it('lists each parse warning under the summary', async () => {
+    const { client } = fakeClient({
+      parse: {
+        format: 'cii',
+        invoice: { number: 'INV-1', lines: [{}] },
+        warnings: [
+          {
+            code: 'PARSE_NOT_RETURNED',
+            message: 'The document holds elements that this response does not return.',
+            terms: ['BG-16', 'BG-23'],
+            elements: [{ path: '/a/b', count: 1 }, { path: '/a/c', count: 2 }],
+          },
+          { code: 'PARSE_VALUE_NOT_FOUND', message: 'No value was found.', field: 'dueDate' },
+        ],
+      },
+    })
+    const { io, out } = recordingIO('<x/>')
+    await runParse(parseArgs(['parse', 'x.xml']), { client }, io)
+    expect(out()).toBe(
+      [
+        'Parsed a cii document: invoice INV-1, 1 line',
+        '2 warnings:',
+        '- PARSE_NOT_RETURNED: The document holds elements that this response does not return. Terms: BG-16, BG-23. 2 element paths; --json lists them.',
+        '- PARSE_VALUE_NOT_FOUND (field dueDate): No value was found.',
+        '',
+      ].join('\n'),
+    )
+  })
+
   it('prints a one-line summary', async () => {
     const { client } = fakeClient()
     const { io, out } = recordingIO('<x/>')
@@ -311,6 +340,35 @@ describe('generate command', () => {
     expect(files).toHaveLength(1)
     expect(files[0].path).toBe('out.xml')
     expect(out()).toBe('')
+  })
+
+  it('says the check was on the invoice XML and names the kind of PDF', async () => {
+    const { client } = fakeClient({
+      generate: {
+        contentType: 'application/pdf',
+        bytes: new Uint8Array([1]),
+        validationResult: { valid: true, format: 'ubl', errors: [], warnings: [], verificationBadgeLabel: 'Authority-checked' },
+        meta: { schematronVersion: '1.2.3', pdfKind: 'visualization' },
+      },
+    })
+    const { io, err } = recordingIO('{"number":"1"}')
+    await runGenerate(
+      parseArgs(['generate', 'inv.json', '--standard', 'xrechnung', '--pdf', '--output', 'o.pdf']),
+      { client },
+      io,
+    )
+    expect(err()).toBe(
+      'Generated a xrechnung pdf document (visualization); invoice XML checked against Schematron 1.2.3, Authority-checked. Written to o.pdf (1 bytes).',
+    )
+  })
+
+  it('names a France CTC block in the verdict of a generated document', async () => {
+    const { client } = fakeClient({
+      generate: { ...sealResult, validationResult: fixture('live-validate-france-previous.json') },
+    })
+    const { io, err } = recordingIO('{"number":"1"}')
+    await runGenerate(parseArgs(['generate', 'inv.json', '--standard', 'facturx']), { client }, io)
+    expect(err()).toContain('BR-FR-05_BT-22_AAB')
   })
 
   it('rejects a PDF result without --output', async () => {
@@ -421,7 +479,7 @@ describe('generate command', () => {
     expect(calls.find((c) => c.method === 'generate')!.args[0].seal).toBe(true)
     expect(out()).toContain('<Invoice>sealed</Invoice>')
     expect(err()).toContain('sha256 abc123def')
-    expect(err()).toContain('Validation passed')
+    expect(err()).toContain('Verdict: VALID.')
     expect(err()).toContain('(sandbox)')
   })
 
@@ -440,11 +498,65 @@ describe('generate command', () => {
     expect(parsed.livemode).toBe(false)
   })
 
-  it('does not request the seal by default', async () => {
-    const { client, calls } = fakeClient()
-    const { io } = recordingIO('{"number":"1"}')
+  it('asks for the envelope without --seal too, and prints the check depth but no hash', async () => {
+    const labelled = {
+      ...sealResult,
+      validationResult: {
+        ...sealResult.validationResult,
+        verificationBadge: 'structure-checked',
+        verificationBadgeLabel: 'Schema-checked',
+      },
+    }
+    const { client, calls } = fakeClient({ generate: labelled })
+    const { io, err } = recordingIO('{"number":"1"}')
     await runGenerate(parseArgs(['generate', 'inv.json', '--standard', 'xrechnung']), { client }, io)
-    expect(calls.find((c) => c.method === 'generate')!.args[0].seal).toBe(false)
+    expect(calls.find((c) => c.method === 'generate')!.args[0].seal).toBe(true)
+    expect(err()).toBe('Generated a xrechnung xml document, checked against Schematron 1.2.3, Schema-checked (sandbox).')
+  })
+
+  it('puts the badge and its label into --json without --seal, and no verdict object', async () => {
+    const labelled = {
+      ...sealResult,
+      validationResult: {
+        ...sealResult.validationResult,
+        verificationBadge: 'authority-verified',
+        verificationBadgeLabel: 'Authority-checked',
+      },
+    }
+    const { client } = fakeClient({ generate: labelled })
+    const { io, out } = recordingIO('{"number":"1"}')
+    await runGenerate(parseArgs(['generate', 'inv.json', '--standard', 'xrechnung', '--json']), { client }, io)
+    const parsed = JSON.parse(out())
+    expect(parsed.verificationBadge).toBe('authority-verified')
+    expect(parsed.verificationBadgeLabel).toBe('Authority-checked')
+    expect(parsed.validationResult).toBeUndefined()
+    expect(parsed.sha256).toBeUndefined()
+  })
+
+  it('marks a verdict that came with no badge label', async () => {
+    const { client } = fakeClient({ generate: sealResult })
+    const { io, err } = recordingIO('{"number":"1"}')
+    await runGenerate(parseArgs(['generate', 'inv.json', '--standard', 'xrechnung']), { client }, io)
+    expect(err()).toContain(', check depth not stated (sandbox).')
+  })
+
+  it('says a document generated with --no-verify was not validated, and names no depth', async () => {
+    const unverified = {
+      ...sealResult,
+      // What the API sends for verify: false. `valid` is false there, so a
+      // renderer that read it first would call the document INVALID.
+      validationResult: { valid: false, verified: false, format: 'cii', errors: [], warnings: [] },
+    }
+    const { client } = fakeClient({ generate: unverified })
+    const { io, err } = recordingIO('{"number":"1"}')
+    await runGenerate(
+      parseArgs(['generate', 'inv.json', '--standard', 'xrechnung', '--no-verify', '--seal']),
+      { client },
+      io,
+    )
+    expect(err()).toBe(
+      'Generated a xrechnung xml document, not validated (sandbox). sha256 abc123def. Verdict: NOT VALIDATED.',
+    )
   })
 })
 
@@ -464,14 +576,51 @@ describe('convert command', () => {
     await expect(runConvert(parseArgs(['convert', 'x.xml']), { client }, io)).rejects.toBeInstanceOf(UsageError)
   })
 
-  it('rejects a PDF target (facturx) without --output', async () => {
+  it('prints the CII XML an XML source converted to facturx comes back as', async () => {
     const { client } = fakeClient({
-      convert: { contentType: 'application/pdf', bytes: new Uint8Array([1]), meta: { targetFormat: 'facturx' } },
+      convert: {
+        contentType: 'application/xml',
+        bytes: new TextEncoder().encode('<rsm:CrossIndustryInvoice/>'),
+        meta: { sourceFormat: 'cii', targetFormat: 'facturx', lostElementsCount: 0 },
+      },
     })
-    const { io } = recordingIO('<x/>')
+    const { io, out, err } = recordingIO('<x/>')
+    const code = await runConvert(parseArgs(['convert', 'x.xml', '--target-format', 'facturx']), { client }, io)
+    expect(code).toBe(0)
+    expect(out()).toBe('<rsm:CrossIndustryInvoice/>\n')
+    expect(err()).toBe('Converted cii to facturx, returned as XML. The API validated the converted XML before returning it.')
+  })
+
+  it('refuses a PDF source for a hybrid target without --output before calling the API', async () => {
+    const { client, calls } = fakeClient()
+    const { io } = recordingIO('%PDF-1.7 ...')
     await expect(
-      runConvert(parseArgs(['convert', 'x.xml', '--target-format', 'facturx']), { client }, io),
+      runConvert(parseArgs(['convert', 'x.pdf', '--target-format', 'facturx']), { client }, io),
     ).rejects.toBeInstanceOf(UsageError)
+    expect(calls).toHaveLength(0)
+  })
+
+  it('writes a PDF that came back to --output and says the PDF itself was not checked', async () => {
+    const { client } = fakeClient({
+      convert: { contentType: 'application/pdf', bytes: new Uint8Array([1, 2]), meta: { targetFormat: 'facturx' } },
+    })
+    const { io, err, files } = recordingIO('%PDF-1.7 ...')
+    await runConvert(parseArgs(['convert', 'x.pdf', '--target-format', 'facturx', '--output', 'o.pdf']), { client }, io)
+    expect(files).toEqual([{ path: 'o.pdf', bytes: new Uint8Array([1, 2]) }])
+    expect(err()).toContain('The API validated the embedded XML before returning it; the PDF around it was not checked.')
+  })
+
+  it('names the count of lost elements as what the engine recorded', async () => {
+    const { client } = fakeClient({
+      convert: {
+        contentType: 'application/xml',
+        bytes: new TextEncoder().encode('<Invoice/>'),
+        meta: { sourceFormat: 'ubl', targetFormat: 'ubl', lostElementsCount: 2 },
+      },
+    })
+    const { io, err } = recordingIO('<x/>')
+    await runConvert(parseArgs(['convert', 'x.xml', '--target-format', 'ubl']), { client }, io)
+    expect(err()).toContain('The engine recorded 2 source element(s) with no target equivalent.')
   })
 
   it('rejects an unknown --target-profile before calling the API', async () => {
@@ -494,5 +643,36 @@ describe('convert command', () => {
       io,
     )
     expect(calls.find((c) => c.method === 'convert')!.args[1].targetProfile).toBe('extended')
+  })
+})
+
+describe('validate command on a France CTC block', () => {
+  // An answer of the live API under `Beliq-Ruleset: previous`, recorded on
+  // 2026-10-11. No flag of this CLI sends that header: an organisation whose
+  // ruleset channel is `previous` gets this answer with none.
+  const blocked = fixture('live-validate-france-previous.json')
+
+  it('exits 1 on a VALID verdict under the default --fail-on', async () => {
+    const { client } = fakeClient({ validate: blocked })
+    const { io, out } = recordingIO('<x/>')
+    const code = await runValidate(parseArgs(['validate', 'fr.xml']), { client }, io)
+    expect(blocked.valid).toBe(true)
+    expect(blocked.errors).toEqual([])
+    expect(code).toBe(1)
+    expect(out()).toContain('VALID  cii  Authority-checked')
+    expect(out()).toContain('BR-FR-05_BT-22_AAB')
+    expect(out()).toContain('This file is reported as failed (exit 1) under every --fail-on.')
+  })
+
+  it('reports the file as fail in a batch and in its JSON, with the ids passed on', async () => {
+    const { client } = queueClient([fixture('live-validate-authority.json'), blocked])
+    const { io, out } = recordingIO({ 'a.xml': '<a/>', 'fr.xml': '<b/>' })
+    const code = await runValidate(parseArgs(['validate', 'a.xml', 'fr.xml', '--json']), { client }, io)
+    expect(code).toBe(1)
+    const report = JSON.parse(out())
+    expect(report).toMatchObject({ total: 2, passed: 1, failed: 1 })
+    expect(report.results[1]).toMatchObject({ file: 'fr.xml', status: 'fail', valid: true })
+    expect(report.results[1].franceCtcBlockingRuleIds).toEqual(blocked.franceCtcBlockingRuleIds)
+    expect(report.results[0].verificationBadgeLabel).toBe('Authority-checked')
   })
 })

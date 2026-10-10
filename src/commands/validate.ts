@@ -56,7 +56,7 @@ export async function runValidate(args: ParsedArgs, deps: Deps, io: IO): Promise
   const single = args.positionals.length === 1 && files.length === 1 && files[0] === args.positionals[0]
   if (single) {
     const result = await deps.client.validate(await io.readInput(files[0]), { format, contentType, franceCtc })
-    io.stdout(json ? `${JSON.stringify(result, null, 2)}\n` : `${renderValidationHuman(result)}\n`)
+    io.stdout(json ? `${JSON.stringify(result, null, 2)}\n` : `${renderValidationHuman(result, { franceFailsFile: true })}\n`)
     return computeExitCode(result, failOn)
   }
 

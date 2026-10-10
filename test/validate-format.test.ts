@@ -49,6 +49,13 @@ describe('renderValidationHuman', () => {
     )
   })
 
+  it('is what the README shows as its sample verdict', () => {
+    const readme = readFileSync(path.join(here, '..', 'README.md'), 'utf8')
+    expect(readme).toContain(
+      `$ beliq validate invoice.xml\n${renderValidationHuman(fixture('live-validate-schema.json'))}\n\`\`\``,
+    )
+  })
+
   it('marks a verdict the API sent no badge for, and names no depth', () => {
     const result = fixture('live-validate-nobadge.json')
     expect(result.verificationBadgeLabel).toBeUndefined()
@@ -64,8 +71,37 @@ describe('renderValidationHuman', () => {
     expect(lines[0]).toBe('VALID  cii  Authority-checked  checked against Schematron 1.3.16')
     expect(lines[2]).toBe('Ruleset channel: previous; the retained ruleset is served until 2027-05-16')
     expect(lines[3]).toBe(result.warnings.find((w) => w.ruleId === 'FRANCE_CTC_FINDINGS_BLOCK_TRANSMISSION')?.message)
-    expect(lines[4]).toBe(`France CTC blocking rule ids: ${result.franceCtcBlockingRuleIds?.join(', ')}`)
-    expect(lines[5]).toBe('This file is reported as failed (exit 1) under every --fail-on.')
+    for (const id of result.franceCtcBlockingRuleIds ?? []) expect(lines[3]).toContain(id)
+    // The message names every id, so the id line is not repeated under it.
+    expect(lines[4]).toBe('')
+    expect(renderValidationHuman(result, { franceFailsFile: true }).split('\n')[4]).toBe(
+      'This file is reported as failed (exit 1) under every --fail-on.',
+    )
+  })
+
+  it('prints the rule ids when the API message for them is missing or leaves one out', () => {
+    const result = fixture('live-validate-france-previous.json')
+    const without = { ...result, warnings: result.warnings.filter((w) => w.ruleId !== 'FRANCE_CTC_FINDINGS_BLOCK_TRANSMISSION') }
+    expect(renderValidationHuman(without)).toContain(
+      `France CTC blocking rule ids: ${result.franceCtcBlockingRuleIds?.join(', ')}`,
+    )
+    const extra = { ...result, franceCtcBlockingRuleIds: [...(result.franceCtcBlockingRuleIds ?? []), 'BR-FR-99'] }
+    expect(renderValidationHuman(extra)).toContain('France CTC blocking rule ids: BR-FR-05_BT-22_AAB')
+  })
+
+  it('replaces control characters in the name of the embedded file', () => {
+    const result = {
+      ...fixture('live-validate-schema.json'),
+      pdfInput: {
+        containerChecked: false,
+        attachmentName: `x"${String.fromCharCode(10)}INVALID${String.fromCharCode(27)}[2K`,
+        attachmentFoundBy: 'xml-content',
+        attachmentCandidates: 1,
+      },
+    } as ValidationResult
+    const text = renderValidationHuman(result)
+    expect(text.split('\n')).toHaveLength(3)
+    expect(text).toContain('the embedded XML "x"?INVALID?[2K"')
   })
 
   it('prints no France lines for a result without the field', () => {
@@ -92,7 +128,7 @@ describe('renderValidationHuman', () => {
   })
 
   it('names neither a depth nor a ruleset for a result nothing validated', () => {
-    const result = { valid: true, verified: false, format: 'cii', schematronVersion: '1.3.16', errors: [], warnings: [] }
+    const result = { valid: false, verified: false, format: 'cii', schematronVersion: '1.3.16', errors: [], warnings: [] }
     expect(renderValidationHuman(result as unknown as ValidationResult)).toBe('NOT VALIDATED  cii\n0 errors, 0 warnings')
   })
 })

@@ -10,13 +10,14 @@ import { UsageError } from '../errors.js'
 import type { Deps } from '../deps.js'
 import type { IO } from '../io.js'
 import { emitDocument } from './emit.js'
-import { checkDepth, verdictWord } from '../verdict.js'
+import { checkDepth, franceBlockLines, verdictWord } from '../verdict.js'
 
 /**
  * Generate a document from an EN 16931 invoice given as JSON. XML is printed to
  * stdout (or --output); a PDF must go to --output. verify defaults on, so the
  * API refuses a document that fails its own validation instead of handing it
- * back. The summary names how deep that validation went.
+ * back. The summary names how deep that validation went. The verdict is about
+ * the invoice XML, so for a PDF the summary says so and names the kind of PDF.
  */
 export async function runGenerate(args: ParsedArgs, deps: Deps, io: IO): Promise<number> {
   const file = requirePositional(args, 'beliq generate <invoice.json|-> --standard <standard>')
@@ -69,9 +70,13 @@ export async function runGenerate(args: ParsedArgs, deps: Deps, io: IO): Promise
   const verdict = result.validationResult
   // `verified: false` is the API's statement that --no-verify skipped validation.
   const ran = verdict?.verified !== false
-  const checked =
-    ran && result.meta.schematronVersion ? `, checked against Schematron ${result.meta.schematronVersion}` : ''
-  const depth = verdict === undefined ? '' : ran ? `, ${checkDepth(verdict)}` : ', not validated'
+  const schematron =
+    ran && result.meta.schematronVersion ? `checked against Schematron ${result.meta.schematronVersion}` : ''
+  const depth = verdict === undefined ? '' : ran ? checkDepth(verdict) : 'not validated'
+  const check = [schematron, depth].filter((part) => part !== '').join(', ')
+  const pdfKind = output === 'pdf' && result.meta.pdfKind ? ` (${result.meta.pdfKind})` : ''
+  const checked = check === '' ? '' : output === 'pdf' ? `; invoice XML ${check}` : `, ${check}`
+  const france = verdict ? franceBlockLines(verdict).map((line) => ` ${line}`).join('') : ''
   const sandbox = result.meta.livemode === false ? ' (sandbox)' : ''
   const meta: Record<string, unknown> = {
     output,
@@ -83,7 +88,7 @@ export async function runGenerate(args: ParsedArgs, deps: Deps, io: IO): Promise
     verificationBadge: verdict?.verificationBadge,
     verificationBadgeLabel: verdict?.verificationBadgeLabel,
   }
-  let summary = `Generated a ${standard} ${output} document${checked}${depth}${sandbox}.`
+  let summary = `Generated a ${standard} ${output} document${pdfKind}${checked}${sandbox}.${france}`
   if (seal) {
     meta.sha256 = result.sha256
     meta.rulesetSha256 = result.meta.rulesetSha256

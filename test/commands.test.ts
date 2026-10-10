@@ -342,6 +342,35 @@ describe('generate command', () => {
     expect(out()).toBe('')
   })
 
+  it('says the check was on the invoice XML and names the kind of PDF', async () => {
+    const { client } = fakeClient({
+      generate: {
+        contentType: 'application/pdf',
+        bytes: new Uint8Array([1]),
+        validationResult: { valid: true, format: 'ubl', errors: [], warnings: [], verificationBadgeLabel: 'Authority-checked' },
+        meta: { schematronVersion: '1.2.3', pdfKind: 'visualization' },
+      },
+    })
+    const { io, err } = recordingIO('{"number":"1"}')
+    await runGenerate(
+      parseArgs(['generate', 'inv.json', '--standard', 'xrechnung', '--pdf', '--output', 'o.pdf']),
+      { client },
+      io,
+    )
+    expect(err()).toBe(
+      'Generated a xrechnung pdf document (visualization); invoice XML checked against Schematron 1.2.3, Authority-checked. Written to o.pdf (1 bytes).',
+    )
+  })
+
+  it('names a France CTC block in the verdict of a generated document', async () => {
+    const { client } = fakeClient({
+      generate: { ...sealResult, validationResult: fixture('live-validate-france-previous.json') },
+    })
+    const { io, err } = recordingIO('{"number":"1"}')
+    await runGenerate(parseArgs(['generate', 'inv.json', '--standard', 'facturx']), { client }, io)
+    expect(err()).toContain('BR-FR-05_BT-22_AAB')
+  })
+
   it('rejects a PDF result without --output', async () => {
     const { client } = fakeClient({
       generate: { contentType: 'application/pdf', bytes: new Uint8Array([1, 2]), meta: {} },
@@ -514,7 +543,9 @@ describe('generate command', () => {
   it('says a document generated with --no-verify was not validated, and names no depth', async () => {
     const unverified = {
       ...sealResult,
-      validationResult: { valid: true, verified: false, format: 'cii', errors: [], warnings: [] },
+      // What the API sends for verify: false. `valid` is false there, so a
+      // renderer that read it first would call the document INVALID.
+      validationResult: { valid: false, verified: false, format: 'cii', errors: [], warnings: [] },
     }
     const { client } = fakeClient({ generate: unverified })
     const { io, err } = recordingIO('{"number":"1"}')
@@ -629,7 +660,8 @@ describe('validate command on a France CTC block', () => {
     expect(blocked.errors).toEqual([])
     expect(code).toBe(1)
     expect(out()).toContain('VALID  cii  Authority-checked')
-    expect(out()).toContain('France CTC blocking rule ids: BR-FR-05_BT-22_AAB')
+    expect(out()).toContain('BR-FR-05_BT-22_AAB')
+    expect(out()).toContain('This file is reported as failed (exit 1) under every --fail-on.')
   })
 
   it('reports the file as fail in a batch and in its JSON, with the ids passed on', async () => {

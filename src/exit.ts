@@ -31,8 +31,8 @@ interface ValidationLike {
  * The CI contract: EXIT.OK when the document passes the chosen threshold,
  * EXIT.INVALID otherwise. `error` (default) fails on any error; `warning` also
  * fails on any warning. A result that carries France CTC blocking rule ids
- * fails under both: the API reports them where `valid` is true, and a default
- * run would otherwise pass a document a French platform refuses.
+ * fails under both: the API reports those ids beside `valid`, also where `valid`
+ * is true, so the default threshold alone would let such a result pass.
  */
 export function computeExitCode(result: ValidationLike, failOn: FailOn): number {
   const errorCount = result.errors?.length ?? 0

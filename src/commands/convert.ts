@@ -58,6 +58,7 @@ export async function runConvert(args: ParsedArgs, deps: Deps, io: IO): Promise<
     result.meta.lostElementsCount && result.meta.lostElementsCount > 0
       ? ` The engine recorded ${result.meta.lostElementsCount} source element(s) with no target equivalent.`
       : ''
+  const sandbox = result.meta.livemode === false ? ' (sandbox)' : ''
   const checked =
     kind === 'pdf'
       ? ' The API validated the embedded XML before returning it; the PDF around it was not checked.'
@@ -72,8 +73,10 @@ export async function runConvert(args: ParsedArgs, deps: Deps, io: IO): Promise<
       profileDetected: result.meta.profileDetected,
       lostElementsCount: result.meta.lostElementsCount,
       lostElements: result.meta.lostElements,
+      conversionTools: result.meta.conversionTools,
+      livemode: result.meta.livemode,
       contentType: result.contentType,
     },
-    summary: `Converted ${from}to ${to}.${checked}${lost}`,
+    summary: `Converted ${from}to ${to}${sandbox}.${checked}${lost}`,
   })
 }

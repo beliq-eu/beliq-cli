@@ -45,10 +45,10 @@ VALID  fatturapa (profile italy-fatturapa-ordinaria-fpr12)  Schema-checked
 - `VALID` and `INVALID` are the API's `valid`. `valid` means the document passed the rule packs and schemas beliq runs for its format, in the versions the result names. It does not mean every recipient, validation tool or tax authority accepts it.
 - The third field is the check depth, printed as the API sends it in `verificationBadgeLabel`. [How verification works](https://docs.beliq.eu/compliance/how-verification-works/) explains each depth. Where the API sends no label, the CLI prints `check depth not stated` and names no depth.
 - For a PDF, a line says which embedded XML the verdict is about. The PDF itself is not checked.
-- When the result carries `franceCtcBlockingRuleIds`, the CLI prints the API's message and the rule ids, and fails the file with exit code 1 under every `--fail-on`, also where the verdict is `VALID`. The API reports those ids beside `valid` and does not fold them into it.
+- When the result carries `franceCtcBlockingRuleIds`, the CLI prints the API's message for them, with the rule ids, and fails the file with exit code 1 under every `--fail-on`, also where the verdict is `VALID`. The API reports those ids beside `valid` and does not fold them into it.
 - The batch table has the same depth in its `DEPTH` column. `--json` carries every field of the API result.
 
-`generate` names the same depth in its summary, and `not validated` with `--no-verify`.
+`generate` names the same depth in its summary, and `not validated` with `--no-verify`. The verdict is about the invoice XML, so for `--pdf` the summary says so and names the kind of PDF.
 
 ```bash
 # Validate a file, human-readable

@@ -39,9 +39,11 @@ function renderTable(headers: string[], rows: string[][]): string {
  * profile, the check depth and the ruleset version, then the issue counts, what
  * the API says about the ruleset channel, a PDF input and a France CTC block,
  * and an aligned table of the errors then warnings. `--json` emits the raw
- * result instead.
+ * result instead. `franceFailsFile` adds what a France CTC block does to the
+ * exit code of `validate`; a verdict printed for a refused generate or convert
+ * leaves it out, because that run exits 3.
  */
-export function renderValidationHuman(result: ValidationResult): string {
+export function renderValidationHuman(result: ValidationResult, opts: { franceFailsFile?: boolean } = {}): string {
   const errors = (result.errors ?? []) as Issue[]
   const warnings = (result.warnings ?? []) as Issue[]
 
@@ -59,7 +61,9 @@ export function renderValidationHuman(result: ValidationResult): string {
     rulesetChannelLine(result),
     pdfInputLine(result),
     ...france,
-    ...(france.length > 0 ? ['This file is reported as failed (exit 1) under every --fail-on.'] : []),
+    ...(france.length > 0 && opts.franceFailsFile
+      ? ['This file is reported as failed (exit 1) under every --fail-on.']
+      : []),
   ].filter((line): line is string => line !== undefined)
   const top = [head, counts, ...notes].join('\n')
 

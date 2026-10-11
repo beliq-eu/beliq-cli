@@ -17,11 +17,23 @@ import { nodeIO, type IO } from '../src/io.js'
 import { recordingIO } from './helpers.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
-const fixture = (name: string): any => JSON.parse(readFileSync(path.join(here, 'fixtures', name), 'utf8'))
+const fixture = (name: string): unknown => JSON.parse(readFileSync(path.join(here, 'fixtures', name), 'utf8'))
 
 interface Call {
   method: string
-  args: any[]
+  args: unknown[]
+}
+
+/**
+ * The object a recorded call passed at `index`. It throws when there is none, so
+ * an assertion on one of its fields cannot pass on a call that never got the object.
+ */
+function arg(call: Call | undefined, index: number): Record<string, unknown> {
+  const value = call?.args[index]
+  if (typeof value !== 'object' || value === null) {
+    throw new Error(`no object at argument ${index} of ${call?.method ?? 'a missing call'}`)
+  }
+  return value as Record<string, unknown>
 }
 
 /**
@@ -33,7 +45,7 @@ function fakeClient(over: Partial<Record<string, unknown>> = {}): { client: Beli
   const calls: Call[] = []
   const rec =
     (method: string, value: () => unknown) =>
-    async (...args: any[]) => {
+    async (...args: unknown[]) => {
       calls.push({ method, args })
       return value()
     }
@@ -109,7 +121,7 @@ describe('validate command', () => {
     const { io } = recordingIO('<x/>')
     await runValidate(parseArgs(['validate', 'x.xml', '--format', 'cii']), { client }, io)
     expect(calls[0].method).toBe('validate')
-    expect(calls[0].args[1].format).toBe('cii')
+    expect(arg(calls[0], 1).format).toBe('cii')
   })
 
   it('rejects an out-of-range --format before calling the API', async () => {
@@ -125,8 +137,8 @@ describe('validate command', () => {
     const { client, calls } = fakeClient()
     await runValidate(parseArgs(['validate', 'x.xml', '--france-ctc']), { client }, recordingIO('<x/>').io)
     await runValidate(parseArgs(['validate', 'x.xml']), { client }, recordingIO('<x/>').io)
-    expect(calls[0].args[1].franceCtc).toBe(true)
-    expect(calls[1].args[1].franceCtc).toBeUndefined()
+    expect(arg(calls[0], 1).franceCtc).toBe(true)
+    expect(arg(calls[1], 1).franceCtc).toBeUndefined()
   })
 })
 
@@ -139,7 +151,7 @@ function queueClient(behaviors: unknown[]): { client: BeliqClient; calls: Call[]
   const calls: Call[] = []
   let i = 0
   const client = {
-    validate: async (...args: any[]) => {
+    validate: async (...args: unknown[]) => {
       calls.push({ method: 'validate', args })
       const b = behaviors[i++]
       if (b instanceof Error) throw b
@@ -256,7 +268,7 @@ describe('validate command (batch)', () => {
     const { client, calls } = queueClient([fixture('validate-valid.json'), fixture('validate-valid.json')])
     const { io } = recordingIO({ 'a.xml': '<a/>', 'b.xml': '<b/>' })
     await runValidate(parseArgs(['validate', 'a.xml', 'b.xml', '--france-ctc']), { client }, io)
-    expect(calls.map((c) => c.args[1].franceCtc)).toEqual([true, true])
+    expect(calls.map((c) => arg(c, 1).franceCtc)).toEqual([true, true])
   })
 })
 
@@ -290,18 +302,18 @@ describe('generate command', () => {
     expect(code).toBe(0)
     expect(out()).toContain('<Invoice>generated</Invoice>')
     expect(err()).toContain('Generated a xrechnung xml document, checked against Schematron 1.2.3')
-    const gen = calls.find((c) => c.method === 'generate')!
-    expect(gen.args[0].standard).toBe('xrechnung')
-    expect(gen.args[0].output).toBe('xml')
-    expect(gen.args[0].verify).toBe(true)
-    expect(gen.args[0].invoice).toEqual({ number: '1' })
+    const gen = calls.find((c) => c.method === 'generate')
+    expect(arg(gen, 0).standard).toBe('xrechnung')
+    expect(arg(gen, 0).output).toBe('xml')
+    expect(arg(gen, 0).verify).toBe(true)
+    expect(arg(gen, 0).invoice).toEqual({ number: '1' })
   })
 
   it('sends verify:false with --no-verify', async () => {
     const { client, calls } = fakeClient()
     const { io } = recordingIO('{"number":"1"}')
     await runGenerate(parseArgs(['generate', 'inv.json', '--standard', 'xrechnung', '--no-verify']), { client }, io)
-    expect(calls.find((c) => c.method === 'generate')!.args[0].verify).toBe(false)
+    expect(arg(calls.find((c) => c.method === 'generate'), 0).verify).toBe(false)
   })
 
   it('writes to a file with --output instead of stdout', async () => {
@@ -335,7 +347,7 @@ describe('generate command', () => {
       { client },
       io,
     )
-    expect(calls.find((c) => c.method === 'generate')!.args[0].template).toBe('standard')
+    expect(arg(calls.find((c) => c.method === 'generate'), 0).template).toBe('standard')
 
     const xml = fakeClient()
     await runGenerate(
@@ -343,7 +355,7 @@ describe('generate command', () => {
       { client: xml.client },
       recordingIO('{"number":"1"}').io,
     )
-    expect(xml.calls.find((c) => c.method === 'generate')!.args[0].template).toBeUndefined()
+    expect(arg(xml.calls.find((c) => c.method === 'generate'), 0).template).toBeUndefined()
   })
 
   // extended-ctc-fr is Factur-X only; the API answers it on zugferd with 422
@@ -369,7 +381,7 @@ describe('generate command', () => {
       { client },
       io,
     )
-    expect(calls.find((c) => c.method === 'generate')!.args[0].facturxProfile).toBe('extended-ctc-fr')
+    expect(arg(calls.find((c) => c.method === 'generate'), 0).facturxProfile).toBe('extended-ctc-fr')
   })
 
   // Outside the family the SDK drops the flag, and xrechnung's own table holds
@@ -418,7 +430,7 @@ describe('generate command', () => {
       io,
     )
     expect(code).toBe(0)
-    expect(calls.find((c) => c.method === 'generate')!.args[0].seal).toBe(true)
+    expect(arg(calls.find((c) => c.method === 'generate'), 0).seal).toBe(true)
     expect(out()).toContain('<Invoice>sealed</Invoice>')
     expect(err()).toContain('sha256 abc123def')
     expect(err()).toContain('Validation passed')
@@ -444,7 +456,7 @@ describe('generate command', () => {
     const { client, calls } = fakeClient()
     const { io } = recordingIO('{"number":"1"}')
     await runGenerate(parseArgs(['generate', 'inv.json', '--standard', 'xrechnung']), { client }, io)
-    expect(calls.find((c) => c.method === 'generate')!.args[0].seal).toBe(false)
+    expect(arg(calls.find((c) => c.method === 'generate'), 0).seal).toBe(false)
   })
 })
 
@@ -455,7 +467,7 @@ describe('convert command', () => {
     const code = await runConvert(parseArgs(['convert', 'x.xml', '--target-format', 'ubl']), { client }, io)
     expect(code).toBe(0)
     expect(out()).toContain('<Invoice>converted</Invoice>')
-    expect(calls.find((c) => c.method === 'convert')!.args[1].targetFormat).toBe('ubl')
+    expect(arg(calls.find((c) => c.method === 'convert'), 1).targetFormat).toBe('ubl')
   })
 
   it('requires --target-format', async () => {
@@ -493,6 +505,6 @@ describe('convert command', () => {
       { client },
       io,
     )
-    expect(calls.find((c) => c.method === 'convert')!.args[1].targetProfile).toBe('extended')
+    expect(arg(calls.find((c) => c.method === 'convert'), 1).targetProfile).toBe('extended')
   })
 })

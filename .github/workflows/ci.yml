@@ -16,7 +16,7 @@ jobs:
       matrix:
         node-version: ['20', '22']
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: ${{ matrix.node-version }}
@@ -91,7 +91,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: '22'
@@ -104,7 +104,7 @@ jobs:
         run: npm run test:integration
 
   guard:
-    uses: beliq-eu/.github/.github/workflows/guard.yml@e9db7765063f11c1d61258df8bb2119c5d92c961 # main
+    uses: beliq-eu/.github/.github/workflows/guard.yml@2b26403b008a833537e2a5182e33120bb59de318 # main
 
   # Branch protection requires this one check instead of each leg of the `test` matrix, so
   # adding or dropping a version needs no change there. It passes only when every leg passed.

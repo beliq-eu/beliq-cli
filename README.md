@@ -115,6 +115,8 @@ Validate every invoice a build produces and fail on an invalid one:
 ```bash
 npm install
 npm run build
+npm run typecheck     # src and tests
+npm run lint          # ESLint with type information, whole repository
 npm test              # unit tests, no network
 npm run scrub:check   # no em-dash
 BELIQ_API_KEY=... npm run test:integration   # live smoke against the real API

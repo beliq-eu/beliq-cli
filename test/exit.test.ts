@@ -22,4 +22,10 @@ describe('computeExitCode', () => {
   it('fails when errors are present even if valid is (defensively) true', () => {
     expect(computeExitCode({ valid: true, errors: [{}], warnings: [] }, 'error')).toBe(EXIT.INVALID)
   })
+
+  it('fails a valid document that carries France CTC blocking rule ids, under either threshold', () => {
+    const blocked = { valid: true, errors: [], warnings: [], franceCtcBlockingRuleIds: ['BR-FR-10_BT-30'] }
+    expect(computeExitCode(blocked, 'error')).toBe(EXIT.INVALID)
+    expect(computeExitCode(blocked, 'warning')).toBe(EXIT.INVALID)
+  })
 })

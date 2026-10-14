@@ -1,6 +1,6 @@
 # beliq-cli
 
-Validate, generate, parse, and convert EU e-invoices (XRechnung, ZUGFeRD, Factur-X, Peppol BIS) from the terminal or CI, through the beliq API. Every verdict states how deep its check went.
+Validate, generate, parse, and convert EU e-invoices (XRechnung, ZUGFeRD, Factur-X, Peppol BIS) from the terminal or CI, through the [beliq](https://beliq.eu) API. Every verdict states how deep its check went.
 
 The headline use is **validating e-invoices in CI**: point it at your invoice files, and an invalid document fails the build.
 

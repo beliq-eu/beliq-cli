@@ -381,7 +381,7 @@ describe('generate command', () => {
     })
     const { io, err } = recordingIO('{"number":"1"}')
     const code = await runGenerate(parseArgs(['generate', 'inv.json', '--standard', 'facturx']), { client }, io)
-    expect(err()).toMatch(/^A plateforme agréée refuses .*BR-FR-05_BT-22_AAB.* Generated a facturx xml document/)
+    expect(err()).toMatch(/^A plateforme agréée refuses .*BR-FR-05_BT-22_AAB.*\nGenerated a facturx xml document/)
     // The exit contract: exit 1 is validate's, and generate returns the document it was given.
     expect(code).toBe(0)
   })
@@ -635,7 +635,7 @@ describe('convert command', () => {
     expect(err()).toBe(
       `Converted to facturx, returned as a PDF. The API validated the invoice XML before returning it. ${CONVERT_PDF_LINE} Written to o.pdf (2 bytes).`,
     )
-    expect(err()).not.toContain('not checked')
+    expect(err()).not.toContain('the PDF around it was not checked')
   })
 
   it('names the count of lost elements as what the engine recorded', async () => {

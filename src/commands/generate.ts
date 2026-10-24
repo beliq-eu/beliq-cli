@@ -91,7 +91,7 @@ export async function runGenerate(args: ParsedArgs, deps: Deps, io: IO): Promise
   const pdfKind = output === 'pdf' && result.meta.pdfKind ? ` (${result.meta.pdfKind})` : ''
   const checked = checkedClause(verdict, result.meta.schematronVersion, output)
   // A France CTC block leads, as validate's does: the API reports it where `valid` is true.
-  const france = verdict ? franceBlockLines(verdict).map((line) => `${line} `).join('') : ''
+  const france = verdict ? franceBlockLines(verdict).map((line) => `${line}\n`).join('') : ''
   const sandbox = result.meta.livemode === false ? ' (sandbox)' : ''
   const meta: Record<string, unknown> = {
     output,

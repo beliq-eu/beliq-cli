@@ -38,8 +38,9 @@ can prove which rules the document passed; hashing the output reproduces it.
 
 convert returns XML for an XML source, facturx and zugferd included. A hybrid
 PDF source sent to facturx or zugferd comes back as a PDF and needs --output:
-the PDF as sent when its embedded XML already is the target, otherwise that PDF
-re-wrapped around the converted XML and passed by veraPDF against PDF/A-3b. A
+the PDF as sent, its container not checked, when its embedded XML already is
+the target; otherwise that PDF re-wrapped around the converted XML and passed
+by veraPDF against PDF/A-3b. A
 test key watermarks it after any veraPDF check. What the API does:
 https://docs.beliq.eu/api-reference/convert/
 

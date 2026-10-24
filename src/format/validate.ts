@@ -6,7 +6,7 @@ import {
   pdfInputLine,
   rulesetChannelLine,
   verdictWord,
-} from '../verdict.js'
+} from '@beliq/sdk/helpers'
 
 interface Issue {
   ruleId: string

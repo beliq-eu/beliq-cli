@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import { BeliqApiError, type ValidationResult } from '@beliq/sdk'
+import { CONVERT_PDF_LINE } from '@beliq/sdk/helpers'
 import type { BeliqClient } from '../src/deps.js'
 import { parseArgs } from '../src/args.js'
 import { UsageError } from '../src/errors.js'
@@ -379,8 +380,20 @@ describe('generate command', () => {
       generate: { ...sealResult, validationResult: fixture('live-validate-france-previous.json') },
     })
     const { io, err } = recordingIO('{"number":"1"}')
-    await runGenerate(parseArgs(['generate', 'inv.json', '--standard', 'facturx']), { client }, io)
-    expect(err()).toContain('BR-FR-05_BT-22_AAB')
+    const code = await runGenerate(parseArgs(['generate', 'inv.json', '--standard', 'facturx']), { client }, io)
+    expect(err()).toMatch(/^A plateforme agréée refuses .*BR-FR-05_BT-22_AAB.* Generated a facturx xml document/)
+    // The exit contract: exit 1 is validate's, and generate returns the document it was given.
+    expect(code).toBe(0)
+  })
+
+  it('carries the France CTC blocking rule ids in --json without --seal', async () => {
+    const france = fixture('live-validate-france-previous.json') as ValidationResult
+    const { client } = fakeClient({ generate: { ...sealResult, validationResult: france } })
+    const { io, out } = recordingIO('{"number":"1"}')
+    await runGenerate(parseArgs(['generate', 'inv.json', '--standard', 'facturx', '--json']), { client }, io)
+    const printed = JSON.parse(out()) as Record<string, unknown>
+    expect(printed.franceCtcBlockingRuleIds).toEqual(france.franceCtcBlockingRuleIds)
+    expect(printed.validationResult).toBeUndefined()
   })
 
   it('rejects a PDF result without --output', async () => {
@@ -612,14 +625,17 @@ describe('convert command', () => {
     expect(calls).toHaveLength(0)
   })
 
-  it('writes a PDF that came back to --output and says the PDF itself was not checked', async () => {
+  it('writes a PDF that came back to --output and names both PDF paths', async () => {
     const { client } = fakeClient({
       convert: { contentType: 'application/pdf', bytes: new Uint8Array([1, 2]), meta: { targetFormat: 'facturx' } },
     })
     const { io, err, files } = recordingIO('%PDF-1.7 ...')
     await runConvert(parseArgs(['convert', 'x.pdf', '--target-format', 'facturx', '--output', 'o.pdf']), { client }, io)
     expect(files).toEqual([{ path: 'o.pdf', bytes: new Uint8Array([1, 2]) }])
-    expect(err()).toContain('The API validated the embedded XML before returning it; the PDF around it was not checked.')
+    expect(err()).toBe(
+      `Converted to facturx, returned as a PDF. The API validated the invoice XML before returning it. ${CONVERT_PDF_LINE} Written to o.pdf (2 bytes).`,
+    )
+    expect(err()).not.toContain('not checked')
   })
 
   it('names the count of lost elements as what the engine recorded', async () => {

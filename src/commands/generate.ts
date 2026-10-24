@@ -3,6 +3,7 @@ import {
   isProfileAllowedForStandard,
   profilesForStandard,
   type FacturxProfile,
+  type GenerateResult,
   type Invoice,
 } from '@beliq/sdk'
 import { flagBool, flagStr, oneOf, requirePositional, type ParsedArgs } from '../args.js'
@@ -10,7 +11,26 @@ import { UsageError } from '../errors.js'
 import type { Deps } from '../deps.js'
 import type { IO } from '../io.js'
 import { emitDocument } from './emit.js'
-import { checkDepth, franceBlockLines, verdictWord } from '../verdict.js'
+import { checkDepth, franceBlockLines, verdictWord } from '@beliq/sdk/helpers'
+
+/**
+ * What the summary says about the validation the API ran on the document: the
+ * Schematron version and the check depth, or that none ran. For a PDF it says
+ * the check was on the invoice XML.
+ */
+function checkedClause(
+  verdict: GenerateResult['validationResult'],
+  schematronVersion: string | undefined,
+  output: 'xml' | 'pdf',
+): string {
+  // `verified: false` is the API's statement that --no-verify skipped validation.
+  const ran = verdict?.verified !== false
+  const schematron = ran && schematronVersion ? `checked against Schematron ${schematronVersion}` : ''
+  const depth = verdict === undefined ? '' : ran ? checkDepth(verdict) : 'not validated'
+  const check = [schematron, depth].filter((part) => part !== '').join(', ')
+  if (check === '') return ''
+  return output === 'pdf' ? `; invoice XML ${check}` : `, ${check}`
+}
 
 /**
  * Generate a document from an EN 16931 invoice given as JSON. XML is printed to
@@ -68,15 +88,10 @@ export async function runGenerate(args: ParsedArgs, deps: Deps, io: IO): Promise
   })
 
   const verdict = result.validationResult
-  // `verified: false` is the API's statement that --no-verify skipped validation.
-  const ran = verdict?.verified !== false
-  const schematron =
-    ran && result.meta.schematronVersion ? `checked against Schematron ${result.meta.schematronVersion}` : ''
-  const depth = verdict === undefined ? '' : ran ? checkDepth(verdict) : 'not validated'
-  const check = [schematron, depth].filter((part) => part !== '').join(', ')
   const pdfKind = output === 'pdf' && result.meta.pdfKind ? ` (${result.meta.pdfKind})` : ''
-  const checked = check === '' ? '' : output === 'pdf' ? `; invoice XML ${check}` : `, ${check}`
-  const france = verdict ? franceBlockLines(verdict).map((line) => ` ${line}`).join('') : ''
+  const checked = checkedClause(verdict, result.meta.schematronVersion, output)
+  // A France CTC block leads, as validate's does: the API reports it where `valid` is true.
+  const france = verdict ? franceBlockLines(verdict).map((line) => `${line} `).join('') : ''
   const sandbox = result.meta.livemode === false ? ' (sandbox)' : ''
   const meta: Record<string, unknown> = {
     output,
@@ -87,8 +102,9 @@ export async function runGenerate(args: ParsedArgs, deps: Deps, io: IO): Promise
     livemode: result.meta.livemode,
     verificationBadge: verdict?.verificationBadge,
     verificationBadgeLabel: verdict?.verificationBadgeLabel,
+    franceCtcBlockingRuleIds: verdict?.franceCtcBlockingRuleIds,
   }
-  let summary = `Generated a ${standard} ${output} document${pdfKind}${checked}${sandbox}.${france}`
+  let summary = `${france}Generated a ${standard} ${output} document${pdfKind}${checked}${sandbox}.`
   if (seal) {
     meta.sha256 = result.sha256
     meta.rulesetSha256 = result.meta.rulesetSha256

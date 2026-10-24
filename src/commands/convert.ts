@@ -6,24 +6,25 @@ import {
   type ConvertTargetFormat,
   type FacturxProfile,
 } from '@beliq/sdk'
-import { sniffContentType } from '@beliq/sdk/helpers'
+import { CONVERT_PDF_LINE, sniffContentType } from '@beliq/sdk/helpers'
 import { flagStr, oneOf, requirePositional, type ParsedArgs } from '../args.js'
 import { UsageError } from '../errors.js'
 import type { Deps } from '../deps.js'
 import type { IO } from '../io.js'
 import { emitDocument } from './emit.js'
 
-/** The targets for which the API can hand a hybrid PDF source back as a PDF. */
+/** The targets for which the API hands a hybrid PDF source back as a PDF. */
 const HYBRID_TARGETS = new Set<string>(['facturx', 'zugferd'])
 
 /**
- * Convert a document from one EN 16931 format to another. The API returns XML
- * for every target, facturx and zugferd included: it does not wrap an XML
- * source into a hybrid PDF. A PDF comes back only when a hybrid PDF source
- * already is the target, and a PDF must go to --output. A 200 means the API
- * validated the converted XML before returning it; it carries no verdict, so
- * no check depth is printed. The count of lost elements is what the engine
- * recorded, and a loss it does not detect is not in it.
+ * Convert a document from one EN 16931 format to another. An XML source comes
+ * back as XML for every target, facturx and zugferd included: the API does not
+ * wrap XML into a hybrid PDF. A hybrid PDF source sent to facturx or zugferd
+ * comes back as a PDF, which must go to --output, and the summary says which
+ * PDF it is. A 200 means the API validated the invoice XML before returning
+ * it; it carries no verdict, so no check depth is printed. The count of lost
+ * elements is what the engine recorded, and a loss it does not detect is not
+ * in it.
  */
 export async function runConvert(args: ParsedArgs, deps: Deps, io: IO): Promise<number> {
   const file = requirePositional(args, 'beliq convert <file|-> --target-format <format>')
@@ -58,7 +59,7 @@ export async function runConvert(args: ParsedArgs, deps: Deps, io: IO): Promise<
   const sandbox = result.meta.livemode === false ? ' (sandbox)' : ''
   const checked =
     kind === 'pdf'
-      ? ' The API validated the embedded XML before returning it; the PDF around it was not checked.'
+      ? ` The API validated the invoice XML before returning it. ${CONVERT_PDF_LINE}`
       : ' The API validated the converted XML before returning it.'
 
   return emitDocument(io, args, {

@@ -36,8 +36,13 @@ Factur-X only.
 generate --seal also returns the document sha256 and validation verdict, so you
 can prove which rules the document passed; hashing the output reproduces it.
 
-convert returns XML for every target, facturx and zugferd included. A PDF comes
-back only when a hybrid PDF source already is the target, and needs --output.
+convert returns XML for an XML source, facturx and zugferd included. A hybrid
+PDF source sent to facturx or zugferd comes back as a PDF and needs --output:
+the PDF as sent, its container not checked, when its embedded XML already is
+the target; otherwise that PDF re-wrapped around the converted XML and passed
+by veraPDF against PDF/A-3b. A
+test key watermarks it after any veraPDF check. What the API does:
+https://docs.beliq.eu/api-reference/convert/
 
 --pdf gives a hybrid PDF/A-3 with the XML embedded for zugferd and facturx.
 xrechnung and peppol-bis have no hybrid form, so --pdf returns a visualization
@@ -56,8 +61,9 @@ Global options:
 
 Exit codes:
   0  success, or a valid document
-  1  document invalid (validate, per --fail-on), or France CTC blocking rule
-     ids in the result
+  1  document invalid, or France CTC blocking rule ids in its result
+     (validate, per --fail-on); generate and convert exit 0 on a document
+     they return, and generate leads its summary with any France CTC block
   2  usage error
   3  beliq API error, the API could not be reached, or an unexpected error
   4  I/O error

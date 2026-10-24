@@ -1,12 +1,13 @@
 import type { ValidationResult } from '@beliq/sdk'
 import {
+  FRANCE_CTC_BLOCKING_FINDING_RULE_ID,
   checkDepth,
   franceBlockLines,
   franceBlockingRuleIds,
   pdfInputLine,
   rulesetChannelLine,
   verdictWord,
-} from '../verdict.js'
+} from '@beliq/sdk/helpers'
 
 interface Issue {
   ruleId: string
@@ -70,7 +71,10 @@ export function renderValidationHuman(result: ValidationResult, opts: { franceFa
   const issues = [...errors, ...warnings]
   if (issues.length === 0) return top
 
-  const rows = issues.map((i) => [i.severity, i.ruleId, i.location || '-', i.message])
+  // The API's own entry for a France CTC block is printed above, so its row points there.
+  const message = (i: Issue): string =>
+    france.length > 0 && i.ruleId === FRANCE_CTC_BLOCKING_FINDING_RULE_ID ? 'the France CTC lines above' : i.message
+  const rows = issues.map((i) => [i.severity, i.ruleId, i.location || '-', message(i)])
   return `${top}\n\n${renderTable(['SEVERITY', 'RULE', 'LOCATION', 'MESSAGE'], rows)}`
 }
 

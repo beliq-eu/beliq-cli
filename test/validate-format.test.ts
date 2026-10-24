@@ -79,6 +79,15 @@ describe('renderValidationHuman', () => {
     )
   })
 
+  it("prints the API's message for a France CTC block once, and its table row points at it", () => {
+    const result = fixture('live-validate-france-previous.json')
+    const entry = result.warnings.find((w) => w.ruleId === 'FRANCE_CTC_FINDINGS_BLOCK_TRANSMISSION')
+    const text = renderValidationHuman(result)
+    expect(text.split(entry?.message ?? '')).toHaveLength(2)
+    const row = text.split('\n').find((line) => line.includes('FRANCE_CTC_FINDINGS_BLOCK_TRANSMISSION'))
+    expect(row).toMatch(/the France CTC lines above\s*$/)
+  })
+
   it('prints the rule ids when the API message for them is missing or leaves one out', () => {
     const result = fixture('live-validate-france-previous.json')
     const without = { ...result, warnings: result.warnings.filter((w) => w.ruleId !== 'FRANCE_CTC_FINDINGS_BLOCK_TRANSMISSION') }

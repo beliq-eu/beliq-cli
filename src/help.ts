@@ -52,6 +52,11 @@ by veraPDF against PDF/A-3b. A
 test key watermarks it after any veraPDF check. What the API does:
 https://docs.beliq.eu/api-reference/convert/
 
+convert --json lists in lostElements the source elements the engine recorded
+as having no target equivalent; a loss it does not detect is not listed. When
+the list would pass the API's 6 KB header cap, it holds one
+{ "truncated": true } entry instead, and lostElementsCount stays the exact count.
+
 --pdf gives a hybrid PDF/A-3 with the XML embedded for zugferd and facturx.
 xrechnung and peppol-bis have no hybrid form, so --pdf returns a visualization
 with no XML inside it, and their legal document stays the XML.

@@ -1,4 +1,12 @@
 import { createRequire } from 'node:module'
+import {
+  LIVE_CONVERT_SOURCE_FORMATS,
+  LIVE_CONVERT_TARGET_FORMATS,
+  LIVE_GENERATE_STANDARDS,
+  LIVE_PARSE_FORMATS,
+  LIVE_PROFILES,
+  LIVE_VALIDATE_FORMATS,
+} from '@beliq/sdk'
 
 const require = createRequire(import.meta.url)
 
@@ -10,10 +18,10 @@ export function version(): string {
 export const HELP = `beliq: validate, generate, parse, and convert EU e-invoices
 
 Usage:
-  beliq validate <file|dir|-> [<file|dir> ...] [--format auto|cii|ubl] [--fail-on error|warning] [--france-ctc] [--content-type <type>] [--json]
-  beliq generate <invoice.json|-> --standard xrechnung|zugferd|facturx|peppol-bis|fatturapa|facturae|eslog|ksef [--pdf] [--facturx-profile basicwl|en16931|extended|extended-ctc-fr] [--no-verify] [--seal] [--output <file>] [--json]
-  beliq parse    <file|->  [--format auto|cii|ubl] [--content-type <type>] [--json]
-  beliq convert  <file|->  --target-format cii|ubl|zugferd|facturx|xrechnung|peppol-bis [--source-format auto|cii|ubl|zugferd|facturx|xrechnung|peppol-bis] [--target-profile basicwl|en16931|extended|extended-ctc-fr] [--content-type <type>] [--output <file>] [--json]
+  beliq validate <file|dir|-> [<file|dir> ...] [--format ${LIVE_VALIDATE_FORMATS.join('|')}] [--fail-on error|warning] [--france-ctc] [--content-type <type>] [--json]
+  beliq generate <invoice.json|-> --standard ${LIVE_GENERATE_STANDARDS.join('|')} [--pdf] [--facturx-profile ${LIVE_PROFILES.join('|')}] [--no-verify] [--seal] [--output <file>] [--json]
+  beliq parse    <file|->  [--format ${LIVE_PARSE_FORMATS.join('|')}] [--content-type <type>] [--json]
+  beliq convert  <file|->  --target-format ${LIVE_CONVERT_TARGET_FORMATS.join('|')} [--source-format ${LIVE_CONVERT_SOURCE_FORMATS.join('|')}] [--target-profile ${LIVE_PROFILES.join('|')}] [--content-type <type>] [--output <file>] [--json]
   beliq me                 [--json]
 
 validate accepts an XML document or a ZUGFeRD/Factur-X PDF. Pass several files,

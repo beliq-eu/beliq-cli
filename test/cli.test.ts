@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import { main } from '../src/cli.js'
+import { HELP } from '../src/help.js'
 import { recordingIO } from './helpers.js'
 
 // main() builds a real client only after config resolves, so every path here is
@@ -48,5 +51,17 @@ describe('main (network-free paths)', () => {
     const code = await main(['validate', 'x.xml', '--nope'], io, NO_ENV)
     expect(code).toBe(2)
     expect(err()).toContain('unknown option')
+  })
+})
+
+describe('the README usage block', () => {
+  it('is the usage of --help, line for line', () => {
+    const readme = readFileSync(fileURLToPath(new URL('../README.md', import.meta.url)), 'utf8')
+    const usage = (text: string): string[] =>
+      text
+        .split('\n')
+        .map((line) => line.trim())
+        .filter((line) => line.startsWith('beliq ') && line.includes('['))
+    expect(usage(readme)).toEqual(usage(HELP))
   })
 })

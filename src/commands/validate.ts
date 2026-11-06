@@ -72,6 +72,7 @@ export async function runValidate(args: ParsedArgs, deps: Deps, io: IO): Promise
 
 async function runBatch(files: string[], opts: BatchOptions, deps: Deps, io: IO): Promise<number> {
   const rows: BatchRow[] = []
+  let stopped = false
 
   for (const [index, file] of files.entries()) {
     let bytes: Uint8Array
@@ -95,12 +96,13 @@ async function runBatch(files: string[], opts: BatchOptions, deps: Deps, io: IO)
         for (const rest of files.slice(index + 1)) {
           rows.push({ file: rest, error: `not checked: the API was unavailable for ${file}, so the batch stopped` })
         }
+        stopped = true
         break
       }
     }
   }
 
-  io.stdout(opts.json ? `${JSON.stringify(batchReport(rows), null, 2)}\n` : `${renderBatchHuman(rows)}\n`)
+  io.stdout(opts.json ? `${JSON.stringify(batchReport(rows, stopped), null, 2)}\n` : `${renderBatchHuman(rows)}\n`)
 
   if (rows.some((r) => 'error' in r)) return EXIT.API
   if (rows.some((r) => 'result' in r && r.fails)) return EXIT.INVALID
@@ -123,7 +125,7 @@ function errorMessage(err: unknown): string {
   return (err as Error).message
 }
 
-function batchReport(rows: BatchRow[]): unknown {
+function batchReport(rows: BatchRow[], stopped: boolean): unknown {
   const results = rows.map((r) =>
     'error' in r
       ? { file: r.file, status: 'error', message: r.error }
@@ -134,6 +136,9 @@ function batchReport(rows: BatchRow[]): unknown {
     passed: rows.filter((r) => 'result' in r && !r.fails).length,
     failed: rows.filter((r) => 'result' in r && r.fails).length,
     errored: rows.filter((r) => 'error' in r).length,
+    // True when an outage ended the batch early. beliq-validate-action reads it
+    // to send no further batch into the same outage.
+    stopped,
     results,
   }
 }

@@ -29,6 +29,7 @@ interface Report {
   passed: number
   failed: number
   errored: number
+  stopped: boolean
   results: { file: string; status: string; message?: string }[]
 }
 
@@ -51,7 +52,7 @@ describe('validate batch on an outage (real SDK, real server)', () => {
       const { code, report } = await batchReport(await listen(server))
       expect(code).toBe(3)
       expect(requests).toBe(1)
-      expect(report).toMatchObject({ total: 3, passed: 0, failed: 0, errored: 3 })
+      expect(report).toMatchObject({ total: 3, passed: 0, failed: 0, errored: 3, stopped: true })
       expect(report.results[0]).toMatchObject({ file: 'a.xml', status: 'error' })
       expect(report.results[0].message).toContain('DATABASE_UNAVAILABLE')
       for (const row of report.results.slice(1)) {
@@ -72,6 +73,7 @@ describe('validate batch on an outage (real SDK, real server)', () => {
 
     const { code, report } = await batchReport(baseUrl)
     expect(code).toBe(3)
+    expect(report.stopped).toBe(true)
     expect(report.results.map((r) => r.file)).toEqual(['a.xml', 'b.xml', 'c.xml'])
     expect(report.results[0].message).not.toMatch(/^not checked: /)
     expect(report.results[1].message).toMatch(/^not checked: /)
@@ -90,6 +92,7 @@ describe('validate batch on an outage (real SDK, real server)', () => {
       const { code, report } = await batchReport(await listen(server))
       expect(code).toBe(3)
       expect(requests).toBe(3)
+      expect(report.stopped).toBe(false)
       for (const row of report.results) expect(row.message).not.toMatch(/^not checked: /)
     } finally {
       await close(server)

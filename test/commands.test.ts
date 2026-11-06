@@ -4,7 +4,7 @@ import { mkdtemp, writeFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
-import { BeliqApiError, type ValidationResult } from '@beliq/sdk'
+import { BeliqApiError, type LostElement, type LostElementsTruncated, type ValidationResult } from '@beliq/sdk'
 import { CONVERT_PDF_LINE } from '@beliq/sdk/helpers'
 import type { BeliqClient } from '../src/deps.js'
 import { parseArgs } from '../src/args.js'
@@ -636,6 +636,48 @@ describe('convert command', () => {
       `Converted to facturx, returned as a PDF. The API validated the invoice XML before returning it. ${CONVERT_PDF_LINE} Written to o.pdf (2 bytes).`,
     )
     expect(err()).not.toContain('the PDF around it was not checked')
+  })
+
+  it('lists each lost element on --json as the object the API sent', async () => {
+    // From the worked example at https://docs.beliq.eu/api-reference/convert/#lostelement-schema
+    const lost: LostElement = {
+      path: '/Invoice/{urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2}AccountingSupplierParty/{urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2}Party/cbc:EndpointID',
+      value: null,
+      reason: 'Peppol endpoint stripped (target is not peppol-bis)',
+      severity: 'info',
+      acceptableLoss: true,
+    }
+    const { client } = fakeClient({
+      convert: {
+        contentType: 'application/xml',
+        bytes: new TextEncoder().encode('<Invoice/>'),
+        meta: { sourceFormat: 'ubl', targetFormat: 'ubl', lostElementsCount: 1, lostElements: [lost] },
+      },
+    })
+    const { io, out } = recordingIO('<x/>')
+    await runConvert(parseArgs(['convert', 'x.xml', '--target-format', 'ubl', '--json']), { client }, io)
+    const parsed = JSON.parse(out())
+    expect(parsed.lostElementsCount).toBe(1)
+    expect(parsed.lostElements).toEqual([lost])
+  })
+
+  it('passes on the truncation entry of a list past the header cap, with the exact count', async () => {
+    const truncated: LostElementsTruncated = {
+      truncated: true,
+      reason: 'Audit list exceeded 6144 bytes (412 entries); see X-Lost-Elements-Count for the exact count.',
+    }
+    const { client } = fakeClient({
+      convert: {
+        contentType: 'application/xml',
+        bytes: new TextEncoder().encode('<Invoice/>'),
+        meta: { sourceFormat: 'ubl', targetFormat: 'cii', lostElementsCount: 412, lostElements: [truncated] },
+      },
+    })
+    const { io, out } = recordingIO('<x/>')
+    await runConvert(parseArgs(['convert', 'x.xml', '--target-format', 'cii', '--json']), { client }, io)
+    const parsed = JSON.parse(out())
+    expect(parsed.lostElementsCount).toBe(412)
+    expect(parsed.lostElements).toEqual([truncated])
   })
 
   it('names the count of lost elements as what the engine recorded', async () => {

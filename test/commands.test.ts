@@ -194,6 +194,17 @@ describe('validate command (batch)', () => {
     expect(out()).toContain('2 files: 1 passed, 0 failed, 1 errored')
   })
 
+  it('keeps checking the rest after a file it cannot read', async () => {
+    const { client, calls } = queueClient([fixture('validate-valid.json')])
+    const { io, out } = recordingIO({ 'b.xml': '<b/>' })
+    const code = await runValidate(parseArgs(['validate', 'missing.xml', 'b.xml', '--json']), { client }, io)
+    expect(code).toBe(3)
+    expect(calls).toHaveLength(1)
+    const report = JSON.parse(out())
+    expect(report).toMatchObject({ total: 2, passed: 1, errored: 1 })
+    expect(report.results[0].message).not.toMatch(/^not checked: /)
+  })
+
   it('fails fast on a fatal API status without hammering every file', async () => {
     const err = new BeliqApiError('invalid api key', { status: 401, code: 'UNAUTHORIZED' })
     const { client, calls } = queueClient([err, fixture('validate-valid.json')])

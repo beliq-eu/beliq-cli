@@ -12,6 +12,12 @@ const FAIL_ON = ['error', 'warning'] as const
 // rate-limited), not one bad document. Fail fast rather than retry per file.
 const FATAL_API_STATUSES = new Set([401, 403, 429])
 
+// The SDK retries an outage for up to its whole retry budget before it gives up,
+// so once one file ends in one of these, every file after it would wait that
+// long again for the same answer. A 504 or the SDK's own timeout can be one slow
+// document, so those stay per file.
+const OUTAGE_API_STATUSES = new Set([502, 503])
+
 interface BatchOptions {
   format: ValidateFormat | undefined
   contentType: string | undefined
@@ -27,7 +33,8 @@ interface BatchOptions {
  * Multiple inputs, or a directory (its `.xml`/`.pdf` files, recursively), switch
  * to a batch: a per-file verdict, an aggregate summary, and a batch exit code (0
  * all pass, 1 some document fails --fail-on or carries France CTC blocking rule
- * ids, 3 some file could not be checked).
+ * ids, 3 some file could not be checked). A batch stops at the first file the
+ * API is unavailable for and reports the files after it as not checked.
  * A directory stays a batch even when it holds one invoice, so the --json shape
  * follows what was asked for rather than how many files were found.
  */
@@ -66,9 +73,15 @@ export async function runValidate(args: ParsedArgs, deps: Deps, io: IO): Promise
 async function runBatch(files: string[], opts: BatchOptions, deps: Deps, io: IO): Promise<number> {
   const rows: BatchRow[] = []
 
-  for (const file of files) {
+  for (const [index, file] of files.entries()) {
+    let bytes: Uint8Array
     try {
-      const bytes = await io.readInput(file)
+      bytes = await io.readInput(file)
+    } catch (err) {
+      rows.push({ file, error: errorMessage(err) })
+      continue
+    }
+    try {
       const result = await deps.client.validate(bytes, {
         format: opts.format,
         contentType: opts.contentType,
@@ -78,6 +91,12 @@ async function runBatch(files: string[], opts: BatchOptions, deps: Deps, io: IO)
     } catch (err) {
       if (err instanceof BeliqApiError && FATAL_API_STATUSES.has(err.status)) throw err
       rows.push({ file, error: errorMessage(err) })
+      if (isOutage(err)) {
+        for (const rest of files.slice(index + 1)) {
+          rows.push({ file: rest, error: `not checked: the API was unavailable for ${file}, so the batch stopped` })
+        }
+        break
+      }
     }
   }
 
@@ -86,6 +105,14 @@ async function runBatch(files: string[], opts: BatchOptions, deps: Deps, io: IO)
   if (rows.some((r) => 'error' in r)) return EXIT.API
   if (rows.some((r) => 'result' in r && r.fails)) return EXIT.INVALID
   return EXIT.OK
+}
+
+// Anything the client throws that is not a BeliqApiError comes from the
+// connection itself (`fetch failed`, or a response cut off), after the SDK's
+// retries: the SDK reports every HTTP answer, a malformed one too, as a
+// BeliqApiError.
+function isOutage(err: unknown): boolean {
+  return err instanceof BeliqApiError ? OUTAGE_API_STATUSES.has(err.status) : true
 }
 
 function errorMessage(err: unknown): string {

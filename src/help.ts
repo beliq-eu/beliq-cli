@@ -85,6 +85,11 @@ In batch mode the code covers the whole run: 0 if every file passes, 1 if a
 document fails --fail-on or carries France CTC blocking rule ids, 3 if any file
 could not be checked.
 
+An outage (a 503 DATABASE_UNAVAILABLE, a 502 or 503 from a proxy, or no
+connection) is retried for up to 15 minutes before it ends in exit 3. A batch
+stops at the first file it ends for and reports the files after it as not
+checked.
+
 A file argument of "-" reads from stdin. Set BELIQ_API_KEY (or pass --api-key)
 with a key from the beliq dashboard; the free tier is enough to evaluate.
 `

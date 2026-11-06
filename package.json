@@ -1,6 +1,6 @@
 {
   "name": "beliq-cli",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "description": "beliq CLI: validate, generate, parse, and convert EU e-invoices (XRechnung, ZUGFeRD, Factur-X, Peppol BIS) from the terminal or CI. Every verdict carries the check depth the API states, or says that none was stated.",
   "license": "MIT",
   "type": "module",
@@ -57,7 +57,7 @@
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "@beliq/sdk": "^0.6.0"
+    "@beliq/sdk": "^0.7.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

@@ -2,7 +2,15 @@ import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
-import { LIVE_CONVERT_SOURCE_FORMATS, LIVE_CONVERT_TARGET_FORMATS, LIVE_GENERATE_STANDARDS, LIVE_PROFILES } from '@beliq/sdk'
+import {
+  DEFAULT_MAX_RETRIES,
+  DEFAULT_RETRY_BUDGET_MS,
+  DEFAULT_TIMEOUT_MS,
+  LIVE_CONVERT_SOURCE_FORMATS,
+  LIVE_CONVERT_TARGET_FORMATS,
+  LIVE_GENERATE_STANDARDS,
+  LIVE_PROFILES,
+} from '@beliq/sdk'
 import { BOOLEAN_FLAGS, VALUE_FLAGS } from '../src/args.js'
 import { HELP } from '../src/help.js'
 
@@ -38,5 +46,23 @@ describe('documented flag surface', () => {
         expect(doc).toContain(`--${flag} ${values.join('|')}`)
       }
     }
+  })
+})
+
+// The README and --help say how long the SDK retries an outage. The SDK's
+// defaults are the source, so a bump that changes them reds here.
+describe('documented retry wait', () => {
+  const minutes = DEFAULT_RETRY_BUDGET_MS / 60_000
+  const seconds = DEFAULT_TIMEOUT_MS / 1000
+
+  it('--help names the retry budget and the last attempt\'s deadline', () => {
+    expect(HELP).toContain(`retried for up to ${minutes} minutes`)
+    expect(HELP).toContain(`deadline\nof up to ${seconds} seconds`)
+  })
+
+  it('the README names the retry budget, the last attempt\'s deadline and the count', () => {
+    expect(readme).toContain(`retried for up to ${minutes} minutes`)
+    expect(readme).toContain(`deadline of up to ${seconds} seconds`)
+    expect(readme).toContain(`${DEFAULT_MAX_RETRIES} times at most`)
   })
 })

@@ -4,6 +4,7 @@ import type { AddressInfo } from 'node:net'
 import { mkdtemp, writeFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { Beliq, type BeliqOptions } from '@beliq/sdk'
 import { main } from '../src/cli.js'
 import { nodeIO, type IO } from '../src/io.js'
 
@@ -86,7 +87,9 @@ describe('main exit codes', () => {
     await gone.close()
 
     const { io, out, err } = capturingIO()
-    const code = await main(['validate', xml], io, { BELIQ_API_KEY: 'blq_test_x', BELIQ_BASE_URL: gone.url })
+    // With the SDK's defaults a refused connection is retried for 15 minutes.
+    const noRetries = (options: BeliqOptions) => new Beliq({ ...options, maxRetries: 0 })
+    const code = await main(['validate', xml], io, { BELIQ_API_KEY: 'blq_test_x', BELIQ_BASE_URL: gone.url }, noRetries)
     expect(code).toBe(3)
     expect(err()).toMatch(/unexpected error: fetch failed \(.*ECONNREFUSED/)
     expect(out()).toBe('')

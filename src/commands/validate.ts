@@ -16,10 +16,10 @@ const FATAL_API_STATUSES = new Set([401, 403, 429])
 // "Timeouts and retries" table lists them: a 503 DATABASE_UNAVAILABLE, a 502 or
 // 503 with no beliq error code, and a connection that could not be opened. Once
 // one file ends in one, every file after it would wait that long again for the
-// same answer. Everything else the SDK retries 3 times at most and can be about
-// one document (a 503 ENGINE_UNAVAILABLE for one format, a connection one
+// same answer. Everything else the SDK retries DEFAULT_MAX_RETRIES times at most
+// and can be about one document (a 503 ENGINE_UNAVAILABLE for one format, a connection one
 // document broke), so it stays with its file. test/batch-outage.test.ts checks
-// this against the installed SDK's own retries.
+// each status and each of these codes against the installed SDK's own retries.
 const BUDGET_ERROR_CODE: ApiErrorCode = 'DATABASE_UNAVAILABLE'
 const BUDGET_CONNECT_CODES = new Set([
   'ECONNREFUSED',

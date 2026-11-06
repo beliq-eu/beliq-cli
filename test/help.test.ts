@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import {
+  DEFAULT_MAX_RETRIES,
   DEFAULT_RETRY_BUDGET_MS,
   DEFAULT_TIMEOUT_MS,
   LIVE_CONVERT_SOURCE_FORMATS,
@@ -54,12 +55,14 @@ describe('documented retry wait', () => {
   const minutes = DEFAULT_RETRY_BUDGET_MS / 60_000
   const seconds = DEFAULT_TIMEOUT_MS / 1000
 
-  it('--help names the retry budget', () => {
+  it('--help names the retry budget and the last attempt\'s deadline', () => {
     expect(HELP).toContain(`retried for up to ${minutes} minutes`)
+    expect(HELP).toContain(`deadline\nof up to ${seconds} seconds`)
   })
 
-  it('the README names the retry budget and the last attempt\'s deadline', () => {
+  it('the README names the retry budget, the last attempt\'s deadline and the count', () => {
     expect(readme).toContain(`retried for up to ${minutes} minutes`)
     expect(readme).toContain(`deadline of up to ${seconds} seconds`)
+    expect(readme).toContain(`${DEFAULT_MAX_RETRIES} times at most`)
   })
 })

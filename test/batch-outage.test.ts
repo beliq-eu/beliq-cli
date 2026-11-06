@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { createServer, type Server } from 'node:http'
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import type { AddressInfo } from 'node:net'
-import { Beliq } from '@beliq/sdk'
+import { Beliq, DEFAULT_MAX_RETRIES } from '@beliq/sdk'
 import { parseArgs } from '../src/args.js'
 import { runValidate } from '../src/commands/validate.js'
 import { recordingIO } from './helpers.js'
@@ -94,6 +94,62 @@ describe('validate batch on an outage (real SDK, real server)', () => {
       expect(requests).toBe(3)
       expect(report.stoppedAt).toBeNull()
       for (const row of report.results) expect(row.message).not.toMatch(/^not checked: /)
+    } finally {
+      await close(server)
+    }
+  })
+})
+
+type Handler = (req: IncomingMessage, res: ServerResponse) => void
+
+// `Retry-After: 0` lets the SDK retry a budget failure many times inside a short
+// budget, while a failure it retries by count stops after DEFAULT_MAX_RETRIES.
+const answer =
+  (status: number, code?: string): Handler =>
+  (_req, res) => {
+    if (code) {
+      res.writeHead(status, { 'Content-Type': 'application/json', 'Retry-After': '0' })
+      res.end(JSON.stringify({ success: false, error: { code, message: code } }))
+    } else {
+      res.writeHead(status, { 'Content-Type': 'text/plain', 'Retry-After': '0' })
+      res.end('upstream unavailable')
+    }
+  }
+
+const CASES: { name: string; handler: Handler; stops: boolean }[] = [
+  { name: '503 DATABASE_UNAVAILABLE', handler: answer(503, 'DATABASE_UNAVAILABLE'), stops: true },
+  { name: '503 with no beliq code', handler: answer(503), stops: true },
+  { name: '502 with no beliq code', handler: answer(502), stops: true },
+  { name: '503 ENGINE_UNAVAILABLE', handler: answer(503, 'ENGINE_UNAVAILABLE'), stops: false },
+  { name: '502 ENGINE_UNAVAILABLE', handler: answer(502, 'ENGINE_UNAVAILABLE'), stops: false },
+  { name: 'a connection closed after the request arrived', handler: (req) => req.socket.destroy(), stops: false },
+]
+
+/** Whether the installed SDK retries this failure past its count, which only its budget does. */
+async function sdkRetriesPastCount(handler: Handler): Promise<boolean> {
+  let requests = 0
+  const server = createServer((req, res) => {
+    requests++
+    handler(req, res)
+  })
+  try {
+    const client = new Beliq({ apiKey: 'blq_test_batch', baseUrl: await listen(server), retryBudgetMs: 1500 })
+    await expect(client.validate('<a/>')).rejects.toBeDefined()
+    return requests > DEFAULT_MAX_RETRIES + 1
+  } finally {
+    await close(server)
+  }
+}
+
+describe('a batch stops exactly where the SDK retries by its budget', () => {
+  it.each(CASES)('$name', async ({ handler, stops }) => {
+    expect(await sdkRetriesPastCount(handler)).toBe(stops)
+
+    const server = createServer(handler)
+    try {
+      const { code, report } = await batchReport(await listen(server))
+      expect(code).toBe(3)
+      expect(report.stoppedAt).toBe(stops ? 'a.xml' : null)
     } finally {
       await close(server)
     }

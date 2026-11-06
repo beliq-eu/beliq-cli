@@ -1,4 +1,4 @@
-import { Beliq, BeliqApiError, type ValidationResult } from '@beliq/sdk'
+import { Beliq, BeliqApiError, type BeliqOptions, type ValidationResult } from '@beliq/sdk'
 import { parseArgs, type ParsedArgs } from './args.js'
 import { resolveConfig } from './config.js'
 import { EXIT } from './exit.js'
@@ -23,22 +23,32 @@ const COMMANDS: Record<string, Command> = {
   me: runMe,
 }
 
-async function dispatch(args: ParsedArgs, io: IO, env: NodeJS.ProcessEnv): Promise<number> {
+type MakeClient = (options: BeliqOptions) => Deps['client']
+
+const realClient: MakeClient = (options) => new Beliq(options)
+
+async function dispatch(args: ParsedArgs, io: IO, env: NodeJS.ProcessEnv, makeClient: MakeClient): Promise<number> {
   const command = args.command ? COMMANDS[args.command] : undefined
   if (!command) throw new UsageError(`unknown command "${args.command}". Run beliq --help.`)
 
   const config = resolveConfig(args, env)
-  const client = new Beliq({ apiKey: config.apiKey, baseUrl: config.baseUrl, auth: config.auth })
+  const client = makeClient({ apiKey: config.apiKey, baseUrl: config.baseUrl, auth: config.auth })
   return command(args, { client }, io)
 }
 
 /**
  * The CLI entry: parse argv, handle --help / --version, dispatch to a command,
  * and map every error class to its exit code (see EXIT). Pure in its IO + env
- * seams so it can be driven from a test without touching real streams. Returns
- * the process exit code.
+ * seams so it can be driven from a test without touching real streams. A test
+ * passes `makeClient` only to shorten the SDK's retries: a refused connection is
+ * retried for the SDK's whole retry budget. Returns the process exit code.
  */
-export async function main(argv: string[], io: IO, env: NodeJS.ProcessEnv = process.env): Promise<number> {
+export async function main(
+  argv: string[],
+  io: IO,
+  env: NodeJS.ProcessEnv = process.env,
+  makeClient: MakeClient = realClient,
+): Promise<number> {
   let args: ParsedArgs
   try {
     args = parseArgs(argv)
@@ -60,7 +70,7 @@ export async function main(argv: string[], io: IO, env: NodeJS.ProcessEnv = proc
   }
 
   try {
-    return await dispatch(args, io, env)
+    return await dispatch(args, io, env, makeClient)
   } catch (err) {
     if (err instanceof UsageError) {
       io.stderr(`beliq: ${err.message}`)

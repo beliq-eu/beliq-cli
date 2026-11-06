@@ -221,7 +221,7 @@ describe('validate command (batch)', () => {
     const code = await runValidate(parseArgs(['validate', 'a.xml', 'b.xml', '--json']), { client }, io)
     expect(code).toBe(1)
     const report = JSON.parse(out())
-    expect(report).toMatchObject({ total: 2, passed: 1, failed: 1, errored: 0, stopped: false })
+    expect(report).toMatchObject({ total: 2, passed: 1, failed: 1, errored: 0, stoppedAt: null })
     expect(report.results[0]).toMatchObject({ file: 'a.xml', status: 'pass', valid: true })
     expect(report.results[1]).toMatchObject({ file: 'b.xml', status: 'fail', valid: false })
     expect(report.results[1].errors[0].ruleId).toBe('BR-DE-15')

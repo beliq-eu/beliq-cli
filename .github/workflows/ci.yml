@@ -27,6 +27,13 @@ jobs:
       - run: npm run build
       - run: npm test
       - run: npm run scrub:check
+      - name: CHANGELOG.md has a heading for the package.json version
+        run: |
+          v="$(node -p "require('./package.json').version")"
+          grep -qE "^## ${v//./\\.} - [0-9]{4}-[0-9]{2}-[0-9]{2}\$" CHANGELOG.md || {
+            echo "::error::CHANGELOG.md has no '## $v - <date>' heading"
+            exit 1
+          }
 
   # test:integration drives the real command functions against the live beliq API
   # and spends 4 documents (validate, generate, convert, parse; `me` is

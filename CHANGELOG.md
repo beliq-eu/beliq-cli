@@ -8,16 +8,17 @@ without a tag. Dates are the npm publish date, in UTC.
 ## 0.5.0 - 2026-11-06
 
 - `validate --format` also accepts `fatturapa`, `facturae`, `eslog` and
-  `poland_ksef_fa3`.
+  `poland_ksef_fa3`, the last for KSeF FA(3) (provisional, structure-checked).
+  Beliq does not operate KSeF submission: transmission via your chosen
+  intermediary.
 - Breaking: `convert --json` prints each `lostElements` entry as an object with
   `path`, `value`, `reason`, `severity` and `acceptableLoss`. Before, each entry
-  was the string `[object Object]`. When the list would pass the API's 6 KB
-  header cap, it holds one `{ "truncated": true }` entry instead, and
+  was the string `[object Object]`. When the list would pass the 6 KB header
+  cap, it holds one `{ "truncated": true }` entry instead, and
   `lostElementsCount` stays the exact count.
-- An outage (a 503 `DATABASE_UNAVAILABLE`, a 502 or 503 with no beliq error
-  code, or no connection) is retried for up to 15 minutes, plus the last
-  attempt's deadline of up to 90 seconds, before the command exits 3. Before,
-  it was retried 3 times.
+- An outage, as `beliq --help` defines it, is retried for up to 15 minutes,
+  plus the last attempt's deadline of up to 90 seconds, before the command
+  exits 3. Before, it was retried 3 times.
 - A `validate` batch stops at the first file an outage ends. Each file after it
   is reported as not checked, and the run exits 3, as before.
 - The batch `--json` report has a `stoppedAt` field: the file where an outage

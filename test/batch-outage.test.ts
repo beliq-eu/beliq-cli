@@ -1,7 +1,7 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import type { AddressInfo } from 'node:net'
-import { Beliq, DEFAULT_MAX_RETRIES } from '@beliq/sdk'
+import { Beliq } from '@beliq/sdk'
 import { parseArgs } from '../src/args.js'
 import { runValidate } from '../src/commands/validate.js'
 import { recordingIO } from './helpers.js'
@@ -102,8 +102,6 @@ describe('validate batch on an outage (real SDK, real server)', () => {
 
 type Handler = (req: IncomingMessage, res: ServerResponse) => void
 
-// `Retry-After: 0` lets the SDK retry a budget failure many times inside a short
-// budget, while a failure it retries by count stops after DEFAULT_MAX_RETRIES.
 const answer =
   (status: number, code?: string): Handler =>
   (_req, res) => {
@@ -116,6 +114,7 @@ const answer =
     }
   }
 
+// `stops` is the SDK's README table: the failures it retries for its whole budget.
 const CASES: { name: string; handler: Handler; stops: boolean }[] = [
   { name: '503 DATABASE_UNAVAILABLE', handler: answer(503, 'DATABASE_UNAVAILABLE'), stops: true },
   { name: '503 with no beliq code', handler: answer(503), stops: true },
@@ -125,26 +124,8 @@ const CASES: { name: string; handler: Handler; stops: boolean }[] = [
   { name: 'a connection closed after the request arrived', handler: (req) => req.socket.destroy(), stops: false },
 ]
 
-/** Whether the installed SDK retries this failure past its count, which only its budget does. */
-async function sdkRetriesPastCount(handler: Handler): Promise<boolean> {
-  let requests = 0
-  const server = createServer((req, res) => {
-    requests++
-    handler(req, res)
-  })
-  try {
-    const client = new Beliq({ apiKey: 'blq_test_batch', baseUrl: await listen(server), retryBudgetMs: 1500 })
-    await expect(client.validate('<a/>')).rejects.toBeDefined()
-    return requests > DEFAULT_MAX_RETRIES + 1
-  } finally {
-    await close(server)
-  }
-}
-
-describe('a batch stops exactly where the SDK retries by its budget', () => {
+describe('a batch stops where the SDK retries by its budget, and only there', () => {
   it.each(CASES)('$name', async ({ handler, stops }) => {
-    expect(await sdkRetriesPastCount(handler)).toBe(stops)
-
     const server = createServer(handler)
     try {
       const { code, report } = await batchReport(await listen(server))
@@ -158,7 +139,6 @@ describe('a batch stops exactly where the SDK retries by its budget', () => {
 
 // A failed connection cannot be staged on demand for every code, so here fetch
 // itself throws what undici throws: "fetch failed" with the code in `cause`.
-// Fake timers play out the SDK's default 15-minute budget in no time.
 const failedFetch = (code: string) =>
   (async () => {
     throw new TypeError('fetch failed', { cause: Object.assign(new Error(code), { code }) })
@@ -176,32 +156,8 @@ const THROWN: { code: string; stops: boolean }[] = [
   { code: 'DEPTH_ZERO_SELF_SIGNED_CERT', stops: false },
 ]
 
-async function sdkRetriesThrownPastCount(code: string): Promise<boolean> {
-  let calls = 0
-  const fetchImpl = failedFetch(code)
-  const counting = (async (...args: Parameters<typeof fetch>) => {
-    calls++
-    return fetchImpl(...args)
-  }) as typeof fetch
-  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] })
-  try {
-    const client = new Beliq({ apiKey: 'blq_test_batch', baseUrl: 'http://127.0.0.1:9', fetch: counting })
-    const outcome = client.validate('<a/>').then(
-      () => 'resolved',
-      () => 'rejected',
-    )
-    await vi.advanceTimersByTimeAsync(20 * 60_000)
-    expect(await outcome).toBe('rejected')
-    return calls > DEFAULT_MAX_RETRIES + 1
-  } finally {
-    vi.useRealTimers()
-  }
-}
-
-describe('a batch stops on a thrown error exactly where the SDK retries it by its budget', () => {
+describe('a batch stops on a thrown error where the SDK retries it by its budget, and only there', () => {
   it.each(THROWN)('$code', async ({ code, stops }) => {
-    expect(await sdkRetriesThrownPastCount(code)).toBe(stops)
-
     const client = new Beliq({ apiKey: 'blq_test_batch', baseUrl: 'http://127.0.0.1:9', maxRetries: 0, fetch: failedFetch(code) })
     const { io, out } = recordingIO(FILES)
     const exit = await runValidate(parseArgs(['validate', 'a.xml', 'b.xml', 'c.xml', '--json']), { client }, io)

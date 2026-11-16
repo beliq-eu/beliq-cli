@@ -1,4 +1,4 @@
-import { LIVE_VALIDATE_FORMATS, BeliqApiError, type ApiErrorCode, type ValidateFormat, type ValidationResult } from '@beliq/sdk'
+import { LIVE_VALIDATE_FORMATS, BeliqApiError, retryClass, type ValidateFormat, type ValidationResult } from '@beliq/sdk'
 import { flagBool, flagStr, oneOf, type ParsedArgs } from '../args.js'
 import { EXIT, computeExitCode, type FailOn } from '../exit.js'
 import { UsageError } from '../errors.js'
@@ -11,24 +11,6 @@ const FAIL_ON = ['error', 'warning'] as const
 // API statuses that mean the whole batch is doomed (bad key, forbidden, or
 // rate-limited), not one bad document. Fail fast rather than retry per file.
 const FATAL_API_STATUSES = new Set([401, 403, 429])
-
-// The failures the SDK retries for its whole retry budget, as its README's
-// "Timeouts and retries" table lists them: a 503 DATABASE_UNAVAILABLE, a 502 or
-// 503 with no beliq error code, and a connection that could not be opened. Once
-// one file ends in one, every file after it would wait that long again for the
-// same answer. Everything else the SDK retries DEFAULT_MAX_RETRIES times at most
-// and can be about one document (a 503 ENGINE_UNAVAILABLE for one format, a connection one
-// document broke), so it stays with its file. test/batch-outage.test.ts checks
-// each status and each of these codes against the installed SDK's own retries.
-const BUDGET_ERROR_CODE: ApiErrorCode = 'DATABASE_UNAVAILABLE'
-const BUDGET_CONNECT_CODES = new Set([
-  'ECONNREFUSED',
-  'ENOTFOUND',
-  'EAI_AGAIN',
-  'ENETUNREACH',
-  'EHOSTUNREACH',
-  'UND_ERR_CONNECT_TIMEOUT',
-])
 
 interface BatchOptions {
   format: ValidateFormat | undefined
@@ -121,14 +103,10 @@ async function runBatch(files: string[], opts: BatchOptions, deps: Deps, io: IO)
   return EXIT.OK
 }
 
+// The failures the SDK retries for its whole retry budget. Once one file ends in
+// one, every file after it would wait that long again for the same answer.
 function isOutage(err: unknown): boolean {
-  if (err instanceof BeliqApiError) {
-    if (err.status !== 502 && err.status !== 503) return false
-    return !err.code || (err.status === 503 && err.code === BUDGET_ERROR_CODE)
-  }
-  // fetch reports a failed connection as "fetch failed" with the reason in `cause`.
-  const code = (err as { cause?: { code?: unknown } } | undefined)?.cause?.code
-  return typeof code === 'string' && BUDGET_CONNECT_CODES.has(code)
+  return retryClass(err) === 'budget'
 }
 
 function errorMessage(err: unknown): string {

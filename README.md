@@ -79,7 +79,7 @@ Every setting has a flag that overrides the environment variable.
 | Variable | Flag | Required | Default | Description |
 |---|---|---|---|---|
 | `BELIQ_API_KEY` | `--api-key` | yes | | Your beliq API key. The free tier is enough to evaluate. |
-| `BELIQ_BASE_URL` | `--base-url` | no | `https://api.beliq.eu` | Override only for a self-hosted deployment. |
+| `BELIQ_BASE_URL` | `--base-url` | no | `https://api.beliq.eu` | The base URL the CLI sends its API requests to. |
 | `BELIQ_AUTH` | `--auth` | no | `header` | How the key is sent: `header` (X-API-Key) or `bearer`. |
 
 ## Exit codes

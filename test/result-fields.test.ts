@@ -21,7 +21,13 @@ const pdf: ValidationResult = {
   pdfInput: { containerChecked: false, attachmentFoundBy: 'embedded-file', attachmentCandidates: 1 },
 }
 const fellBack: ValidationResult = { ...recorded[0].result, rulesetChannel: 'previous', rulesetFellBack: true }
-const subjects = [...recorded, { name: 'pdf', result: pdf }, { name: 'fell-back', result: fellBack }]
+const superseded: ValidationResult = { ...recorded[0].result, rulesetSupersededOn: '2026-08-17' }
+const subjects = [
+  ...recorded,
+  { name: 'pdf', result: pdf },
+  { name: 'fell-back', result: fellBack },
+  { name: 'superseded', result: superseded },
+]
 
 /** A value of the same type that differs from the one given. */
 function changed(value: unknown): unknown {

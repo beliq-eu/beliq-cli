@@ -29,6 +29,8 @@ export const VALIDATION_FIELDS = {
   rulesetSha256: 'json',
   rulesetArtifacts: 'json',
   driftCheckedAt: 'json',
+  // Each RULESET_SUPERSEDED warning in the human output names this date.
+  rulesetSupersededOn: 'json',
   ciusVersion: 'json',
   peppolVersion: 'json',
   facturxProfile: 'json',

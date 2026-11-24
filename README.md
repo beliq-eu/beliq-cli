@@ -12,7 +12,7 @@ npm install -g beliq-cli
 npx beliq-cli validate invoice.xml
 ```
 
-Requires Node.js >= 22.
+Requires Node.js >= 24.
 
 ## Usage
 

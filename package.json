@@ -31,7 +31,7 @@
     "ci"
   ],
   "engines": {
-    "node": ">=20.15"
+    "node": ">=22"
   },
   "bin": {
     "beliq": "dist/index.js"
@@ -60,7 +60,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@types/node": "^20.14.0",
+    "@types/node": "^22.20.5",
     "eslint": "^10.11.0",
     "globals": "^17.12.0",
     "typescript": "^6.0.0",

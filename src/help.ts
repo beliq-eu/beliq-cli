@@ -15,7 +15,7 @@ export function version(): string {
   return pkg.version
 }
 
-export const HELP = `beliq: validate, generate, parse, and convert EU e-invoices
+export const HELP = `beliq: generate, validate, parse and convert EU e-invoices
 
 Usage:
   beliq validate <file|dir|-> [<file|dir> ...] [--format ${LIVE_VALIDATE_FORMATS.join('|')}] [--fail-on error|warning] [--france-ctc] [--content-type <type>] [--json]
